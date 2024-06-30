@@ -105,6 +105,12 @@ app.Configure(config =>
         branch.AddCommand<ImportVoltronTimeCommand>("import-time");
     });
 
+    config.AddBranch("toggl", branch =>
+    {
+        branch.AddCommand<ConfigureTogglCommand>("configure");
+        branch.AddCommand<ImportTogglTimeCommand>("import-time");
+    });
+
     config.AddBranch("time", branch =>
     {
         branch.AddCommand<GetTimeEntriesCommand>("list").WithAlias("ls");

@@ -97,6 +97,27 @@ namespace HQ.CLI.Commands.ChargeCode
                 });
             }
 
+            if (records != null)
+            {
+                List<TogglRecord> distinct = records.DistinctBy(t => t.Description).ToList();
+                foreach (TogglRecord record in distinct)
+                {
+                    records.Remove(record);
+                }
+
+                foreach (TogglRecord record in records)
+                {
+                    TogglRecord? matching = distinct.Find(t => t.Description == record.Description && t.Quote == record.Quote);
+
+                    if (matching != null)
+                    {
+                        distinct[distinct.FindIndex(t => t == matching)].Duration = (matching.Duration + record.Duration) * 3600;
+                    }
+                }
+
+                records = distinct;
+            }
+
             return records;
         }
     }

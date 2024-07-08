@@ -6,6 +6,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Xml;
 
 using FluentResults;
 
@@ -51,11 +52,11 @@ namespace HQ.CLI.Commands.ChargeCode
             }
 
             List<TogglRecord> records = (await GetRecordsAsync(settings.From, settings.To, _config.TogglUserName!, _config.TogglPassword!)) ?? new List<TogglRecord>();
-            records = records.Where(t => t.Start >= settings.From.ToDateTime(TimeOnly.MinValue) && t.Start <= settings.To.ToDateTime(TimeOnly.MaxValue)).ToList();
 
             Console.WriteLine($"Processing {records.Count} records");
             foreach (TogglRecord record in records)
             {
+                Console.WriteLine($"{record.Quote} - {record.Description}");
                 UpsertTimeV1.Request request = new UpsertTimeV1.Request()
                 {
                     Date = DateOnly.FromDateTime(record.Start),
@@ -79,7 +80,10 @@ namespace HQ.CLI.Commands.ChargeCode
 
         async static Task<List<TogglRecord>?> GetRecordsAsync(DateOnly start, DateOnly end, string userName, string pass)
         {
-            string url = $"https://api.track.toggl.com/api/v9/me/time_entries?meta=true&start_date={start.ToString("yyyy-MM-dd")}&end_date={end.AddDays(1).ToString("yyyy-MM-dd")}";
+            DateTime startDateTime = TimeZoneInfo.ConvertTimeToUtc(start.ToDateTime(TimeOnly.MinValue), TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
+            DateTime endDateTime = TimeZoneInfo.ConvertTimeToUtc(end.ToDateTime(TimeOnly.MaxValue), TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
+
+            string url = $"https://api.track.toggl.com/api/v9/me/time_entries?meta=true&start_date={XmlConvert.ToString(startDateTime, XmlDateTimeSerializationMode.Utc)}&end_date={XmlConvert.ToString(endDateTime, XmlDateTimeSerializationMode.Utc)}";
 
             List<TogglRecord>? records;
             using (HttpClient client = new HttpClient())

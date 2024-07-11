@@ -57,15 +57,7 @@ namespace HQ.CLI.Commands.ChargeCode
             foreach (TogglRecord record in records)
             {
                 Console.WriteLine($"{record.Quote} - {record.Description}");
-                UpsertTimeV1.Request request = new UpsertTimeV1.Request()
-                {
-                    Date = DateOnly.FromDateTime(record.Start),
-                    Hours = (decimal?)record.Duration,
-                    Notes = record.Description,
-                    ChargeCode = record.Quote
-                };
-
-                var response = await _hqService.UpsertTimeEntryV1(request);
+                var response = await _hqService.UpsertTimeEntryV1(record.ToUpsertTimeV1Request());
 
                 if (!response.IsSuccess || response.Value == null)
                 {
@@ -196,5 +188,55 @@ namespace HQ.CLI.Commands.ChargeCode
         public DateTime Start { get; set; }
 
         public TogglRecord() { }
+
+        public UpsertTimeV1.Request ToUpsertTimeV1Request()
+        {
+            Dictionary<string, string?> parsedDescription = ParseDescription();
+
+            return new UpsertTimeV1.Request()
+            {
+                Date = DateOnly.FromDateTime(Start),
+                Hours = (decimal?)Duration,
+                Notes = parsedDescription["description"],
+                ChargeCode = Quote,
+                Task = parsedDescription["task"],
+                ActivityName = parsedDescription["activity"]
+            };
+        }
+
+        private Dictionary<string, string?> ParseDescription()
+        {
+            Dictionary<string, string?> returnValue = new Dictionary<string, string?>()
+            {
+                { "description",  null },
+                { "activity", null },
+                { "task", null }
+            };
+
+            if (String.IsNullOrEmpty(Description))
+            {
+                return returnValue;
+            }
+
+            string description = Description;
+            if (description.Contains("[[") && description.Contains("]]"))
+            {
+                string activity = description.Substring(description.IndexOf("[[") + 2, description.IndexOf("]]") - description.IndexOf("[[") - 2);
+                returnValue["activity"] = activity;
+
+                description = description.Replace($"[[{activity}]]", "");
+            }
+
+            if (description.Contains("((") && description.Contains("))"))
+            {
+                string task = description.Substring(description.IndexOf("((") + 2, description.IndexOf("))") - description.IndexOf("((") - 2);
+                returnValue["task"] = task;
+
+                description = description.Replace($"(({task}))", "");
+            }
+
+            returnValue["description"] = description.Trim();
+            return returnValue;
+        }
     }
 }

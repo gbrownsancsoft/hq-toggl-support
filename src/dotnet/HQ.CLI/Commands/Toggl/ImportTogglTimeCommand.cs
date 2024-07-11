@@ -68,15 +68,15 @@ namespace HQ.CLI.Commands.ChargeCode
             }
             else
             {
-                AnsiConsole.MarkupLine("[yellow3]No dates provided, defaulting to today[/]");
+                AnsiConsole.MarkupLine("[yellow3]No dates provided, defaulting to today[/]\n");
             }
 
             List<TogglRecord> records = (await GetRecordsAsync(start, end, _config.TogglUserName!, _config.TogglPassword!)) ?? new List<TogglRecord>();
 
-            Console.WriteLine($"Processing {records.Count} records");
+            AnsiConsole.MarkupLine($"Processing [yellow3]{records.Count}[/] records\n");
             foreach (TogglRecord record in records)
             {
-                Console.WriteLine($"{record.Quote} - {record.Description}");
+                AnsiConsole.MarkupLine($"[blue]{record.Quote}[/] - {record.Description}");
                 var response = await _hqService.UpsertTimeEntryV1(record.ToUpsertTimeV1Request());
 
                 if (!response.IsSuccess || response.Value == null)
@@ -85,7 +85,7 @@ namespace HQ.CLI.Commands.ChargeCode
                 }
             }
 
-            Console.WriteLine("Import Complete, Verify Entries in HQ Before Submitting");
+            AnsiConsole.MarkupLine("\nImport Complete, [bold underline]Verify Entries in HQ Before Submitting[/]");
 
             return 0;
         }
@@ -95,7 +95,7 @@ namespace HQ.CLI.Commands.ChargeCode
             DateTime startDateTime = TimeZoneInfo.ConvertTimeToUtc(start.ToDateTime(TimeOnly.MinValue), TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
             DateTime endDateTime = TimeZoneInfo.ConvertTimeToUtc(end.ToDateTime(TimeOnly.MaxValue), TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
 
-            AnsiConsole.MarkupLine($"Getting Records Between [blue]{start.ToLongDateString()}[/] and [blue]{end.ToLongDateString()}[/]");
+            AnsiConsole.MarkupLine($"Getting Records Between [blue]{start.ToLongDateString()}[/] and [blue]{end.ToLongDateString()}[/]\n");
             string url = $"https://api.track.toggl.com/api/v9/me/time_entries?meta=true&start_date={XmlConvert.ToString(startDateTime, XmlDateTimeSerializationMode.Utc)}&end_date={XmlConvert.ToString(endDateTime, XmlDateTimeSerializationMode.Utc)}";
 
             List<TogglRecord>? records;

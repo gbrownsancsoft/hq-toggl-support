@@ -30,6 +30,8 @@ internal class ConfigureTogglCommand : AsyncCommand<HQCommandSettings>
             new TextPrompt<string>("Enter Toggl Password:")
         );
 
+        Console.WriteLine("Username and password successfully saved, it is a good idea to execute the 'layout' Toggl command to see how the Toggl entries should be structured");
+
         return Task.FromResult(0);
     }
 }

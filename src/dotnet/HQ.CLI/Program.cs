@@ -109,6 +109,7 @@ app.Configure(config =>
     {
         branch.AddCommand<ConfigureTogglCommand>("configure");
         branch.AddCommand<ImportTogglTimeCommand>("import-time");
+        branch.AddCommand<LayoutTogglCommand>("layout");
     });
 
     config.AddBranch("time", branch =>

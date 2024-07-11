@@ -24,10 +24,10 @@ namespace HQ.CLI.Commands.ChargeCode
     internal class ImportTogglTimeSettings : HQCommandSettings
     {
         [CommandOption("--from")]
-        public DateOnly From { get; set; }
+        public DateOnly? From { get; set; }
 
         [CommandOption("--to")]
-        public DateOnly To { get; set; }
+        public DateOnly? To { get; set; }
     }
 
     internal class ImportTogglTimeCommand : AsyncCommand<ImportTogglTimeSettings>
@@ -51,7 +51,27 @@ namespace HQ.CLI.Commands.ChargeCode
                 return 1;
             }
 
-            List<TogglRecord> records = (await GetRecordsAsync(settings.From, settings.To, _config.TogglUserName!, _config.TogglPassword!)) ?? new List<TogglRecord>();
+            DateOnly start = DateOnly.FromDateTime(DateTime.Now);
+            DateOnly end = DateOnly.FromDateTime(DateTime.Now);
+
+            if (settings.From.HasValue && settings.To.HasValue)
+            {
+                if (settings.From.HasValue)
+                {
+                    start = settings.From.Value;
+                }
+
+                if (settings.To.HasValue)
+                {
+                    end = settings.To.Value;
+                }
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("[yellow3]No dates provided, defaulting to today[/]");
+            }
+
+            List<TogglRecord> records = (await GetRecordsAsync(start, end, _config.TogglUserName!, _config.TogglPassword!)) ?? new List<TogglRecord>();
 
             Console.WriteLine($"Processing {records.Count} records");
             foreach (TogglRecord record in records)
@@ -75,6 +95,7 @@ namespace HQ.CLI.Commands.ChargeCode
             DateTime startDateTime = TimeZoneInfo.ConvertTimeToUtc(start.ToDateTime(TimeOnly.MinValue), TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
             DateTime endDateTime = TimeZoneInfo.ConvertTimeToUtc(end.ToDateTime(TimeOnly.MaxValue), TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
 
+            AnsiConsole.MarkupLine($"Getting Records Between [blue]{start.ToLongDateString()}[/] and [blue]{end.ToLongDateString()}[/]");
             string url = $"https://api.track.toggl.com/api/v9/me/time_entries?meta=true&start_date={XmlConvert.ToString(startDateTime, XmlDateTimeSerializationMode.Utc)}&end_date={XmlConvert.ToString(endDateTime, XmlDateTimeSerializationMode.Utc)}";
 
             List<TogglRecord>? records;
@@ -233,6 +254,11 @@ namespace HQ.CLI.Commands.ChargeCode
                 returnValue["task"] = task;
 
                 description = description.Replace($"(({task}))", "");
+            }
+
+            while (description.Contains("  "))
+            {
+                description = description.Replace("  ", " ");
             }
 
             returnValue["description"] = description.Trim();

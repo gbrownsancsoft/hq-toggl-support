@@ -76,8 +76,9 @@ namespace HQ.CLI.Commands.ChargeCode
             AnsiConsole.MarkupLine($"Processing [yellow3]{records.Count}[/] records\n");
             foreach (TogglRecord record in records)
             {
-                AnsiConsole.MarkupLine($"[blue]{record.Quote}[/] - {record.Description}");
-                var response = await _hqService.UpsertTimeEntryV1(record.ToUpsertTimeV1Request());
+                UpsertTimeV1.Request request = record.ToUpsertTimeV1Request();
+                AnsiConsole.MarkupLine($"[blue]{request.ChargeCode}[/] - {request.Notes}" + (!String.IsNullOrEmpty(request.Task) ? $" [yellow3]{request.Task}[/]" : "") + (!String.IsNullOrEmpty(request.ActivityName) ? $" [orangered1]{request.ActivityName}[/]" : ""));
+                var response = await _hqService.UpsertTimeEntryV1(request);
 
                 if (!response.IsSuccess || response.Value == null)
                 {

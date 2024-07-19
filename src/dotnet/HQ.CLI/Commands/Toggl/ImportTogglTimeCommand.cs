@@ -77,7 +77,7 @@ namespace HQ.CLI.Commands.ChargeCode
             foreach (TogglRecord record in records)
             {
                 UpsertTimeV1.Request request = record.ToUpsertTimeV1Request();
-                AnsiConsole.MarkupLine($"[blue]{request.ChargeCode}[/] - {request.Notes}" + (!String.IsNullOrEmpty(request.Task) ? $" [yellow3]{request.Task}[/]" : "") + (!String.IsNullOrEmpty(request.ActivityName) ? $" [orangered1]{request.ActivityName}[/]" : ""));
+                AnsiConsole.MarkupLine($"[blue]{request.ChargeCode}[/] : {request.Notes}" + (!String.IsNullOrEmpty(request.Task) ? $" [yellow3]{request.Task}[/]" : "") + (!String.IsNullOrEmpty(request.ActivityName) ? $" [orangered1]{request.ActivityName}[/]" : ""));
                 var response = await _hqService.UpsertTimeEntryV1(request);
 
                 if (!response.IsSuccess || response.Value == null)
@@ -94,9 +94,9 @@ namespace HQ.CLI.Commands.ChargeCode
         async static Task<List<TogglRecord>?> GetRecordsAsync(DateOnly start, DateOnly end, string userName, string pass)
         {
             DateTime startDateTime = TimeZoneInfo.ConvertTimeToUtc(start.ToDateTime(TimeOnly.MinValue), TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
-            DateTime endDateTime = TimeZoneInfo.ConvertTimeToUtc(end.ToDateTime(TimeOnly.MaxValue), TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
+            DateTime endDateTime = TimeZoneInfo.ConvertTimeToUtc(end.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
 
-            AnsiConsole.MarkupLine($"Getting Records Between [blue]{start.ToLongDateString()}[/] and [blue]{end.ToLongDateString()}[/]\n");
+            AnsiConsole.MarkupLine($"Getting Records Between [blue]{startDateTime.ToShortDateString()} {startDateTime.ToShortTimeString()}[/] and [blue]{endDateTime.ToShortDateString()} {endDateTime.ToShortTimeString()}[/]\n");
             string url = $"https://api.track.toggl.com/api/v9/me/time_entries?meta=true&start_date={XmlConvert.ToString(startDateTime, XmlDateTimeSerializationMode.Utc)}&end_date={XmlConvert.ToString(endDateTime, XmlDateTimeSerializationMode.Utc)}";
 
             List<TogglRecord>? records;
@@ -144,6 +144,18 @@ namespace HQ.CLI.Commands.ChargeCode
     {
         private string? _project_name { get; set; }
         public int _duration { get; private set; }
+        private DateTime _startTime { get; set; }
+        public DateTime Start
+        {
+            get
+            {
+                return TimeZoneInfo.ConvertTimeFromUtc(_startTime, TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
+            }
+            set
+            {
+                _startTime = new DateTime(value.Ticks, DateTimeKind.Utc);
+            }
+        }
 
         public string? Quote
         {
@@ -207,7 +219,6 @@ namespace HQ.CLI.Commands.ChargeCode
             }
         }
         public string? _Billable { get; set; } = null;
-        public DateTime Start { get; set; }
 
         public TogglRecord() { }
 

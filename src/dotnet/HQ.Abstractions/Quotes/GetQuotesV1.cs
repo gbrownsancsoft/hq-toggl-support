@@ -15,14 +15,17 @@ namespace HQ.Abstractions.Quotes
             public Guid? clientId { get; set; }
             public SortColumn SortBy { get; set; } = SortColumn.QuoteName;
             public SortDirection SortDirection { get; set; } = SortDirection.Asc;
+            public ProjectStatus? QuoteStatus { get; set; }
         }
         public enum SortColumn
         {
             QuoteName = 1,
-            ClientName = 2,
-            Value = 3,
-            Status = 4,
-            Date = 5
+            QuoteNumber = 2,
+            ClientName = 3,
+            ChargeCode = 4,
+            Value = 5,
+            Status = 6,
+            Date = 7,
         }
 
         public class Response : PagedResponseV1<Record>;
@@ -38,6 +41,8 @@ namespace HQ.Abstractions.Quotes
             public DateOnly Date { get; set; }
             public decimal Value { get; set; }
             public ProjectStatus Status { get; set; }
+            public bool HasPDF { get; set; }
+            public bool HasProject { get; set; }
         }
     }
 }

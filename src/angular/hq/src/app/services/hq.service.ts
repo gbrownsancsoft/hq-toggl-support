@@ -20,8 +20,8 @@ import {
   UpsertClientResponseV1,
 } from '../models/clients/upsert-client-v1';
 import {
-  GetProjectRecordsV1,
   GetProjectRequestV1,
+  GetProjectResponseV1,
 } from '../models/projects/get-project-v1';
 import {
   GetQuotesRecordsV1,
@@ -57,6 +57,14 @@ import {
   GetStaffV1Response,
 } from '../models/staff-members/get-staff-member-v1';
 import {
+  UpsertHolidayRequestV1,
+  UpsertHolidayResponseV1,
+} from '../models/holiday/upsert-holiday-v1';
+import {
+  GetHolidayV1Request,
+  GetHolidayV1Response,
+} from '../models/holiday/get-holiday-v1';
+import {
   UpsertProjectRequestV1,
   UpsertProjectResponsetV1,
 } from '../models/projects/upsert-project-v1';
@@ -86,10 +94,30 @@ import {
   UpsertChargeCodesRequestV1,
   UpsertChargeCodesResponseV1,
 } from '../models/charge-codes/upsert-chargecodes';
+// import {
+//   UploadQuotePDFRequestV1,
+//   UploadQuotePDFResponseV1,
+// } from '../models/quotes/upload-quotePDF-v1';
 import {
   GetProjectActivitiesResponseV1,
   GetProjectActivityRequestV1,
-} from '../models/PSR/get-project-activity-v1';
+} from '../models/projects/get-project-activity-v1';
+import {
+  AddProjectMemberRequestV1,
+  AddProjectMemberResponseV1,
+} from '../models/projects/add-project-member-v1';
+import {
+  RemoveProjectMemberRequestV1,
+  RemoveProjectMemberResponseV1,
+} from '../models/projects/remove-project-member-v1';
+import {
+  UpsertProjectActivityResponseV1,
+  UpsertProjectActivityRequestV1,
+} from '../models/projects/upsert-project-activity-v1';
+import {
+  DeleteProjectActivityV1Request,
+  DeleteProjectActivityV1Response,
+} from '../models/projects/delete-project-activity-v1';
 import {
   GetTimeRecordsV1,
   GetTimeRequestV1,
@@ -114,7 +142,42 @@ import {
   SubmitTimeResponseV1,
   SubmitTimesRequestV1,
 } from '../models/times/submit-times-v1';
-
+import {
+  GetPrevPSRRequestV1,
+  GetPrevPsrResponseV1,
+} from '../models/PSR/get-previous-PSR-v1';
+import {
+  GetPlanRequestV1,
+  GetPlanResponseV1,
+} from '../models/Plan/get-plan-v1';
+import {
+  UpsertPlanRequestV1,
+  UpsertPlanResponseV1,
+} from '../models/Plan/upsert-plan-v1';
+import {
+  GetStatusRequestV1,
+  GetStatusResponseV1,
+} from '../models/status/get-status-v1';
+import {
+  GetPrevPlanRequestV1,
+  GetPrevPlanResponseV1,
+} from '../models/Plan/get-previous-PSR-v1';
+import {
+  UpsertStatusRequestV1,
+  UpsertStatusResponseV1,
+} from '../models/status/upsert-status-v1';
+import {
+  getPointsRequestV1,
+  getPointsResponseV1,
+} from '../models/Points/get-points-v1';
+import {
+  upsertPointsRequestV1,
+  upsertPointsResponseV1,
+} from '../models/Points/upsert-points-V1';
+import {
+  GetPointsSummaryRequestV1,
+  GetPointsSummaryResponseV1,
+} from '../models/Points/get-points-summary-v1';
 @Injectable({
   providedIn: 'root',
 })
@@ -150,7 +213,7 @@ export class HQService {
   getProjectsV1(request: Partial<GetProjectRequestV1>) {
     return this.appSettings.apiUrl$.pipe(
       switchMap((apiUrl) =>
-        this.http.post<GetProjectRecordsV1>(
+        this.http.post<GetProjectResponseV1>(
           `${apiUrl}/v1/Projects/GetProjectsV1`,
           request,
         ),
@@ -207,6 +270,18 @@ export class HQService {
       ),
     );
   }
+
+  getPrevPSRV1(request: Partial<GetPrevPSRRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<GetPrevPsrResponseV1>(
+          `${apiUrl}/v1/ProjectStatusReports/GetPreviousProjectStatusReportsV1`,
+          request,
+        ),
+      ),
+    );
+  }
+
   getProjectPSRV1(id: string) {
     return this.getPSRV1({ projectId: id });
   }
@@ -287,7 +362,16 @@ export class HQService {
       ),
     );
   }
-
+  getHolidayV1(request: Partial<GetHolidayV1Request>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<GetHolidayV1Response>(
+          `${apiUrl}/v1/Holiday/GetHolidayV1`,
+          request,
+        ),
+      ),
+    );
+  }
   upsertProjectV1(request: Partial<UpsertProjectRequestV1>) {
     return this.appSettings.apiUrl$.pipe(
       switchMap((apiUrl) =>
@@ -355,7 +439,17 @@ export class HQService {
       ),
     );
   }
-
+  upsertHolidayV1(request: Partial<UpsertHolidayRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<UpsertHolidayResponseV1>(
+          `${apiUrl}/v1/Holiday/UpsertHolidayV1
+          `,
+          request,
+        ),
+      ),
+    );
+  }
   upsertChargecodesV1(request: Partial<UpsertChargeCodesRequestV1>) {
     return this.appSettings.apiUrl$.pipe(
       switchMap((apiUrl) =>
@@ -367,7 +461,49 @@ export class HQService {
       ),
     );
   }
+  upsertProjectActivityV1(request: Partial<UpsertProjectActivityRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<UpsertProjectActivityResponseV1>(
+          `${apiUrl}/v1/Projects/UpsertProjectActivityV1
+          `,
+          request,
+        ),
+      ),
+    );
+  }
+  deleteProjectActivityV1(request: Partial<DeleteProjectActivityV1Request>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<DeleteProjectActivityV1Response>(
+          `${apiUrl}/v1/Projects/DeleteProjectActivityV1`,
+          request,
+        ),
+      ),
+    );
+  }
 
+  addProjectMemberV1(request: Partial<AddProjectMemberRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<AddProjectMemberResponseV1>(
+          `${apiUrl}/v1/Projects/AddProjectMemberV1
+          `,
+          request,
+        ),
+      ),
+    );
+  }
+  removeProjectMemberV1(request: Partial<RemoveProjectMemberRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<RemoveProjectMemberResponseV1>(
+          `${apiUrl}/v1/Projects/RemoveProjectMemberV1`,
+          request,
+        ),
+      ),
+    );
+  }
   submitProjectStatusReportV1(request: Partial<SubmitPSRRequestV1>) {
     return this.appSettings.apiUrl$.pipe(
       switchMap((apiUrl) =>
@@ -474,6 +610,120 @@ export class HQService {
       })),
     );
   }
-}
+  getPlanV1(request: Partial<GetPlanRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<GetPlanResponseV1>(
+          `${apiUrl}/v1/Plan/GetPlanV1`,
+          request,
+        ),
+      ),
+    );
+  }
+  upsertPlanV1(request: Partial<UpsertPlanRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<UpsertPlanResponseV1>(
+          `${apiUrl}/v1/Plan/UpsertPlanV1`,
+          request,
+        ),
+      ),
+    );
+  }
 
-// UpdateProjectStatusReportTimeV1
+  getStatusV1(request: Partial<GetStatusRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<GetStatusResponseV1>(
+          `${apiUrl}/v1/Status/GetStatusV1`,
+          request,
+        ),
+      ),
+    );
+  }
+  upsertStatus(request: Partial<UpsertStatusRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<UpsertStatusResponseV1>(
+          `${apiUrl}/v1/Status/UpsertStatusV1`,
+          request,
+        ),
+      ),
+    );
+  }
+
+  getPreviousPlanV1(request: Partial<GetPrevPlanRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<GetPrevPlanResponseV1>(
+          `${apiUrl}/v1/Plan/PreviousPlanV1`,
+          request,
+        ),
+      ),
+    );
+  }
+
+  getPlanningPointsV1(request: Partial<getPointsRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<getPointsResponseV1>(
+          `${apiUrl}/v1/Point/GetPointsV1`,
+          request,
+        ),
+      ),
+    );
+  }
+  upsertPlanningPointsV1(request: Partial<upsertPointsRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<upsertPointsResponseV1>(
+          `${apiUrl}/v1/Point/UpsertPointV1`,
+          request,
+        ),
+      ),
+    );
+  }
+
+  uploadQuotePDFV1(quoteId: string, file: File) {
+    const formData = new FormData();
+    formData.append('id', quoteId);
+    formData.append('file', file);
+
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<void>(`${apiUrl}/v1/Quotes/UploadQuotePDFV1`, formData),
+      ),
+    );
+  }
+
+  getQuotePDFV1(request: Partial<object>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.request('post', `${apiUrl}/v1/Quotes/GetQuotePDFV1`, {
+          body: request,
+          responseType: 'blob',
+          observe: 'response',
+        }),
+      ),
+      map((response) => ({
+        file: response.body,
+        fileName: (response.headers.get('content-disposition') ?? '')
+          .split(';')[1]
+          .split('filename')[1]
+          .split('=')[1]
+          .trim(),
+      })),
+    );
+  }
+
+  getPointsSummaryV1(request: Partial<GetPointsSummaryRequestV1>) {
+    return this.appSettings.apiUrl$.pipe(
+      switchMap((apiUrl) =>
+        this.http.post<GetPointsSummaryResponseV1>(
+          `${apiUrl}/v1/Point/GetPointSummaryV1`,
+          request,
+        ),
+      ),
+    );
+  }
+}

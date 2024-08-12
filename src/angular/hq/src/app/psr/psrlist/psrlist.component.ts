@@ -12,19 +12,19 @@ import {
   debounceTime,
   switchMap,
   shareReplay,
-  first,
   firstValueFrom,
 } from 'rxjs';
-import { ProjectStatus } from '../../clients/client-details.service';
 import { GetPSRRecordV1, SortColumn } from '../../models/PSR/get-PSR-v1';
 import { SortDirection } from '../../models/common/sort-direction';
 import { HQService } from '../../services/hq.service';
 import { CommonModule } from '@angular/common';
 import { PaginatorComponent } from '../../common/paginator/paginator.component';
 import { SortIconComponent } from '../../common/sort-icon/sort-icon.component';
-import { Period } from '../../projects/project-create/project-create.component';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { PsrListService } from './services/pstlistService';
+import { ProjectStatus } from '../../enums/project-status';
+import { Period } from '../../enums/period';
+import { ProjectType } from '../../enums/project-type';
 
 @Component({
   selector: 'hq-psrlist',
@@ -53,13 +53,12 @@ export class PSRListComponent implements OnInit {
   sortColumn = SortColumn;
   sortDirection = SortDirection;
   ProjectStatus = ProjectStatus;
+  ProjectType = ProjectType;
 
   async ngOnInit() {
     this.psrListService.showSearch();
     this.psrListService.showStaffMembers();
     this.psrListService.showIsSubmitted();
-    this.psrListService.showStartDate();
-    this.psrListService.showEndDate();
 
     const staffId = await firstValueFrom(
       this.oidcSecurityService.userData$.pipe(map((t) => t.userData?.staff_id)),
@@ -102,14 +101,21 @@ export class PSRListComponent implements OnInit {
       startWith(psrListService.staffMember.value),
     );
 
+    const period$ = this.psrListService.selectedPeriod.valueChanges.pipe(
+      startWith(this.psrListService.selectedPeriod.value),
+      tap((date) => date || new Date()),
+    );
+
     const isSubmitted$ = psrListService.isSubmitted.valueChanges.pipe(
       startWith(psrListService.isSubmitted.value),
     );
     const startDate$ = psrListService.startDate.valueChanges.pipe(
       startWith(psrListService.startDate.value),
+      map((date) => date || null),
     );
     const endDate$ = psrListService.endDate.valueChanges.pipe(
       startWith(psrListService.endDate.value),
+      map((date) => date || null),
     );
 
     const request$ = combineLatest({
@@ -122,6 +128,7 @@ export class PSRListComponent implements OnInit {
       isSubmitted: isSubmitted$,
       startDate: startDate$ ?? null,
       endDate: endDate$ ?? null,
+      period: period$ ?? null,
     });
 
     const response$ = request$.pipe(
@@ -129,24 +136,6 @@ export class PSRListComponent implements OnInit {
       switchMap((request) => this.hqService.getPSRV1(request)),
       shareReplay({ bufferSize: 1, refCount: false }),
     );
-
-    const staffMembersResponse$ = this.hqService
-      .getStaffMembersV1({ isAssignedProjectManager: true })
-      .pipe(
-        map((response) => response.records),
-        map((records) =>
-          records.map((record) => ({
-            id: record.id,
-            name: record.name,
-            totalHours: record.workHours,
-          })),
-        ),
-      );
-
-    staffMembersResponse$.pipe(first()).subscribe((response) => {
-      console.log(response);
-      psrListService.staffMembers$.next(response);
-    });
 
     this.projectStatusReports$ = response$.pipe(
       map((response) => {

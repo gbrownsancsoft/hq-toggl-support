@@ -1,5 +1,5 @@
-import { Period } from '../../projects/project-create/project-create.component';
-import { TimeStatus } from '../common/time-status';
+import { Period } from '../../enums/period';
+import { TimeStatus } from '../../enums/time-status';
 
 export interface GetDashboardTimeV1Request {
   staffId: string;
@@ -25,12 +25,14 @@ export interface GetDashboardTimeV1Response {
   chargeCodes: GetDashboardTimeV1ChargeCode[];
   clients: GetDashboardTimeV1Client[];
   rejectedCount: number;
+  canSubmit: boolean;
 }
 
 export interface GetDashboardTimeV1TimeForDate {
   date: string;
   times: GetDashboardTimeV1TimeForDateTimes[];
   totalHours: number;
+  canCreateTime: boolean;
 }
 
 export interface GetDashboardTimeV1TimeForDateTimes {

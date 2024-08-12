@@ -66,6 +66,7 @@ public class GetProjectsV1
         // Letter of engagement
         public decimal HourlyRate { get; set; }
         public decimal BookingHours { get; set; }
+        public decimal TimeEntryMaxHours { get; set; }
         public Period BookingPeriod { get; set; }
         public DateOnly? StartDate { get; set; }
         public DateOnly? EndDate { get; set; }
@@ -109,5 +110,9 @@ public class GetProjectsV1
         public decimal? SummaryHoursAvailable { get; set; }
         public decimal? SummaryPercentComplete { get; set; }
         public decimal? SummaryPercentCompleteSort { get; set; }
+        public ProjectType Type { get; set; }
+        public bool Billable { get; set; }
+        public decimal? ProjectBookingHours { get; set; }
+        public decimal? ProjectTotalHours { get; set; }
     }
 }

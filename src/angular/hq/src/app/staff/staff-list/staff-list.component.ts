@@ -1,7 +1,4 @@
-import {
-  Jurisdiciton,
-  SortColumn,
-} from './../../models/staff-members/get-staff-member-v1';
+import { SortColumn } from './../../models/staff-members/get-staff-member-v1';
 import { Component } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -16,16 +13,17 @@ import {
   BehaviorSubject,
 } from 'rxjs';
 import { Observable } from 'rxjs';
-import { ClientDetailsService } from '../../clients/client-details.service';
 import { SortDirection } from '../../models/common/sort-direction';
 import { HQService } from '../../services/hq.service';
 import { CommonModule } from '@angular/common';
-import { ClientDetailsSearchFilterComponent } from '../../clients/client-details/client-details-search-filter/client-details-search-filter.component';
 import { PaginatorComponent } from '../../common/paginator/paginator.component';
 import { SortIconComponent } from '../../common/sort-icon/sort-icon.component';
 import { GetStaffV1Record } from '../../models/staff-members/get-staff-member-v1';
 import { HQRole } from '../../enums/hqrole';
 import { InRolePipe } from '../../pipes/in-role.pipe';
+import { Jurisdiciton } from '../../enums/jurisdiciton';
+import { StaffListService } from './staff-list.service';
+import { StaffListSearchFilterComponent } from '../staff-list-search-filter/staff-list-search-filter.component';
 
 @Component({
   selector: 'hq-staff-list',
@@ -36,9 +34,9 @@ import { InRolePipe } from '../../pipes/in-role.pipe';
     ReactiveFormsModule,
     PaginatorComponent,
     SortIconComponent,
-    ClientDetailsSearchFilterComponent,
     RouterLink,
     InRolePipe,
+    StaffListSearchFilterComponent,
   ],
   templateUrl: './staff-list.component.html',
 })
@@ -51,10 +49,8 @@ export class StaffListComponent {
   sortOption$: BehaviorSubject<SortColumn>;
   sortDirection$: BehaviorSubject<SortDirection>;
   Jurisdiction = Jurisdiciton;
-
   itemsPerPage = new FormControl(20, { nonNullable: true });
   page = new FormControl<number>(1, { nonNullable: true });
-
   sortColumn = SortColumn;
   sortDirection = SortDirection;
   HQRole = HQRole;
@@ -62,7 +58,7 @@ export class StaffListComponent {
   constructor(
     private hqService: HQService,
     private route: ActivatedRoute,
-    private clientDetailService: ClientDetailsService,
+    public staffListService: StaffListService,
   ) {
     const itemsPerPage$ = this.itemsPerPage.valueChanges.pipe(
       startWith(this.itemsPerPage.value),
@@ -75,11 +71,18 @@ export class StaffListComponent {
       map(([itemsPerPage, page]) => (page - 1) * itemsPerPage),
       startWith(0),
     );
-    const search$ = clientDetailService.search.valueChanges.pipe(
+    const search$ = staffListService.search.valueChanges.pipe(
       tap(() => this.goToPage(1)),
-      startWith(clientDetailService.search.value),
+      startWith(staffListService.search.value),
     );
-
+    const status$ = staffListService.status.valueChanges.pipe(
+      tap(() => this.goToPage(1)),
+      startWith(staffListService.status.value),
+    );
+    const currentOnly$ = staffListService.currentOnly.valueChanges.pipe(
+      tap(() => this.goToPage(1)),
+      startWith(staffListService.currentOnly.value),
+    );
     this.skipDisplay$ = skip$.pipe(map((skip) => skip + 1));
 
     const request$ = combineLatest({
@@ -88,6 +91,8 @@ export class StaffListComponent {
       take: itemsPerPage$,
       sortBy: this.sortOption$,
       sortDirection: this.sortDirection$,
+      currentOnly: currentOnly$,
+      status: status$,
     });
 
     const response$ = request$.pipe(
@@ -113,10 +118,6 @@ export class StaffListComponent {
         Math.min(skip + itemsPerPage, totalRecords),
       ),
     );
-
-    this.clientDetailService.resetFilters();
-    this.clientDetailService.hideProjectStatus();
-    this.clientDetailService.hideCurrentOnly();
   }
 
   goToPage(page: number) {

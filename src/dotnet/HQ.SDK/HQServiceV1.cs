@@ -116,7 +116,8 @@ namespace HQ.SDK
 
         public Task<Result<DeleteProjectV1.Response?>> DeleteProjectV1(DeleteProjectV1.Request request, CancellationToken ct = default)
             => ExecuteRequest<DeleteProjectV1.Response>("/v1/Projects/DeleteProjectV1", request, ct);
-
+        public Task<Result<DeleteProjectActivityV1.Response?>> DeleteProjectActivityV1(DeleteProjectActivityV1.Request request, CancellationToken ct = default)
+                    => ExecuteRequest<DeleteProjectActivityV1.Response>("/v1/Projects/DeleteProjectActivityV1", request, ct);
         public async Task<Result<ImportProjectsV1.Response?>> ImportProjectsV1(ImportProjectsV1.Request request, CancellationToken ct = default)
         {
             using var multipartContent = new MultipartFormDataContent();
@@ -138,6 +139,7 @@ namespace HQ.SDK
             multipartContent.Add(new StringContent(request.From.ToString("o"), Encoding.UTF8), nameof(request.From));
             multipartContent.Add(new StringContent(request.To.ToString("o"), Encoding.UTF8), nameof(request.To));
             multipartContent.Add(new StringContent(request.Replace.ToString(), Encoding.UTF8), nameof(request.Replace));
+            multipartContent.Add(new StringContent(request.Status.ToString(), Encoding.UTF8), nameof(request.Status));
 
             var response = await _httpClient.PostAsync("/v1/Voltron/ImportVoltronTimeSheetsV1", multipartContent, ct);
 

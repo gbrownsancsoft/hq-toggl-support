@@ -13,7 +13,6 @@ import {
   switchMap,
   shareReplay,
 } from 'rxjs';
-import { ProjectStatus } from '../../clients/client-details.service';
 import {
   GetChargeCodeRecordV1,
   SortColumn,
@@ -26,6 +25,7 @@ import { SortIconComponent } from '../../common/sort-icon/sort-icon.component';
 import { ChargeCodeSearchFilterComponent } from '../SearchFilter/charge-code-search-filter.component';
 import { HQRole } from '../../enums/hqrole';
 import { InRolePipe } from '../../pipes/in-role.pipe';
+import { ProjectStatus } from '../../enums/project-status';
 
 @Component({
   selector: 'hq-charge-code-list',
@@ -106,9 +106,6 @@ export class ChargeCodeListComponent implements OnInit {
     );
 
     this.totalRecords$ = response$.pipe(map((t) => t.total!));
-    this.chargeCodes$.subscribe((records) => {
-      console.log(records);
-    });
 
     this.takeToDisplay$ = combineLatest([
       skip$,

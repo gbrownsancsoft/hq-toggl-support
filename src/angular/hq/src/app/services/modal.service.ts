@@ -4,10 +4,15 @@ import { Dialog } from '@angular/cdk/dialog';
 import { AlertModalComponent } from '../common/alert-modal/alert-modal.component';
 import { ConfirmModalComponent } from '../common/confirm-modal/confirm-modal.component';
 import { PromptModalComponent } from '../common/prompt-modal/prompt-modal.component';
+import { DateModalComponent } from '../common/date-modal/date-modal.component';
 
 export interface ModalData {
   title: string;
   message?: string;
+  value?: string | null;
+}
+export interface DateModalData extends ModalData {
+  date: string;
 }
 
 @Injectable({
@@ -29,6 +34,20 @@ export class ModalService {
     );
     return dialogRef.closed.pipe(map((t) => t == true));
   }
+  chooseDate(title: string, message: string = '', date: string) {
+    const dialogRef = this.dialog.open<string | null, DateModalData>(
+      DateModalComponent,
+      {
+        minWidth: '600px',
+        data: {
+          title,
+          message,
+          date,
+        },
+      },
+    );
+    return dialogRef.closed;
+  }
 
   alert(title: string, message: string): Observable<boolean> {
     const dialogRef = this.dialog.open<boolean, ModalData>(
@@ -45,7 +64,11 @@ export class ModalService {
     return dialogRef.closed.pipe(map(() => true));
   }
 
-  prompt(title: string, message: string = ''): Observable<string | undefined> {
+  prompt(
+    title: string,
+    message: string = '',
+    value: string | undefined | null = '',
+  ): Observable<string | undefined> {
     const dialogRef = this.dialog.open<string, ModalData>(
       PromptModalComponent,
       {
@@ -53,6 +76,7 @@ export class ModalService {
         data: {
           title,
           message,
+          value,
         },
       },
     );

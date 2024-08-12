@@ -1,7 +1,19 @@
+/* eslint-disable rxjs-angular/prefer-takeuntil */
+/* eslint-disable rxjs-angular/prefer-async-pipe */
 import { ClientDetailsSearchFilterComponent } from './client-details-search-filter/client-details-search-filter.component';
 import { Component } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import {
+  ActivatedRoute,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+} from '@angular/router';
 import { ClientDetailsSummaryComponent } from './client-details-summary/client-details-summary.component';
+import { map, Subscription } from 'rxjs';
+import { ClientDetailsService } from './client-details.service';
+import { TabComponent } from '../../core/components/tab/tab.component';
+import { ClientQuoteListService } from './client-quote-list/client-quote-list.service';
+import { ClientProjectListService } from './client-project-list/client-project-list.service';
 
 @Component({
   selector: 'hq-client-details',
@@ -12,8 +24,27 @@ import { ClientDetailsSummaryComponent } from './client-details-summary/client-d
     RouterLinkActive,
     ClientDetailsSummaryComponent,
     ClientDetailsSearchFilterComponent,
+    TabComponent,
   ],
   templateUrl: './client-details.component.html',
-  // providers: [ClientDetailsService]
+  providers: [
+    ClientDetailsService,
+    ClientQuoteListService,
+    ClientProjectListService,
+  ],
 })
-export class ClientDetailsComponent {}
+export class ClientDetailsComponent {
+  private subscriptions: Subscription[] = [];
+
+  constructor(
+    private clientDetailsService: ClientDetailsService,
+    private route: ActivatedRoute,
+  ) {
+    const clientId$ = route.paramMap.pipe(map((t) => t.get('clientId')));
+
+    clientId$.subscribe({
+      next: (clientId) => this.clientDetailsService.setClientId(clientId),
+      error: console.error,
+    });
+  }
+}

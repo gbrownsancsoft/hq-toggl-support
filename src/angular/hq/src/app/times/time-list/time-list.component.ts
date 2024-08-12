@@ -13,7 +13,11 @@ import {
   shareReplay,
   firstValueFrom,
 } from 'rxjs';
-import { GetTimeRecordV1, SortColumn } from '../../models/times/get-time-v1';
+import {
+  GetTimeRecordV1,
+  GetTimeRequestV1,
+  SortColumn,
+} from '../../models/times/get-time-v1';
 import { SortDirection } from '../../models/common/sort-direction';
 import { HQService } from '../../services/hq.service';
 import { CommonModule } from '@angular/common';
@@ -21,8 +25,10 @@ import { PaginatorComponent } from '../../common/paginator/paginator.component';
 import { SortIconComponent } from '../../common/sort-icon/sort-icon.component';
 import { TimeService } from '../services/TimeService';
 import { TimeSearchFilterComponent } from '../search-filter/time-search-filter/time-search-filter.component';
-import { saveAs } from 'file-saver';
+import saveAs from 'file-saver';
 import { ToastService } from '../../services/toast.service';
+import { InRolePipe } from '../../pipes/in-role.pipe';
+import { HQRole } from '../../enums/hqrole';
 
 @Component({
   selector: 'hq-time-list',
@@ -34,6 +40,7 @@ import { ToastService } from '../../services/toast.service';
     PaginatorComponent,
     SortIconComponent,
     TimeSearchFilterComponent,
+    InRolePipe,
   ],
   templateUrl: './time-list.component.html',
 })
@@ -42,15 +49,20 @@ export class TimeListComponent {
 
   skipDisplay$: Observable<number>;
   takeToDisplay$: Observable<number>;
+  billableHours$: Observable<number>;
+  TotalHours$: Observable<number>;
+  AcceptedHours$: Observable<number>;
+  AcceptedBillableHours$: Observable<number>;
   totalRecords$: Observable<number>;
   times$: Observable<GetTimeRecordV1[]>;
   sortOption$: BehaviorSubject<SortColumn>;
   sortDirection$: BehaviorSubject<SortDirection>;
-  timeRequest$ = new BehaviorSubject({});
   date$ = new BehaviorSubject<Date | null>(null);
 
+  HQRole = HQRole;
   sortColumn = SortColumn;
   sortDirection = SortDirection;
+  timeRequest$: Observable<Partial<GetTimeRequestV1>>;
 
   constructor(
     private hqService: HQService,
@@ -81,67 +93,6 @@ export class TimeListComponent {
 
     this.skipDisplay$ = skip$.pipe(map((skip) => skip + 1));
 
-    // Getting the staff members
-    this.hqService
-      .getStaffMembersV1({})
-      .pipe(
-        map((members) => members.records),
-        map((records) =>
-          records.map((record) => ({
-            id: record.id,
-            name: record.name,
-          })),
-        ),
-      )
-      .subscribe((staffMembers) => {
-        this.timeListService.staffMembers$.next(staffMembers);
-      });
-    // Getting the Clients
-    this.hqService
-      .getClientsV1({})
-      .pipe(
-        map((clients) => clients.records),
-        map((records) =>
-          records.map((record) => ({
-            id: record.id,
-            name: record.name,
-          })),
-        ),
-      )
-      .subscribe((clients) => {
-        this.timeListService.clients$.next(clients);
-      });
-    const clientId$ = this.timeListService.client.valueChanges.pipe(
-      tap(() => {
-        this.timeListService.project.setValue(null);
-      }),
-      startWith(this.timeListService.client.value),
-    );
-
-    // Assuming clientId$ is defined and is an observable
-    const projectRequest$ = combineLatest({
-      clientId: clientId$,
-    });
-
-    projectRequest$
-      .pipe(
-        switchMap((projectRequest) =>
-          this.hqService.getProjectsV1(projectRequest).pipe(
-            map((clients) => clients.records),
-            map((records) =>
-              records.map((record) => ({
-                id: record.id,
-                name: record.name,
-                chargeCode: record.chargeCode,
-              })),
-            ),
-          ),
-        ),
-      )
-      .subscribe((projects) => {
-        this.timeListService.projects$.next(projects);
-      });
-
     const staffMemberId$ = this.timeListService.staffMember.valueChanges.pipe(
       startWith(this.timeListService.staffMember.value),
     );
@@ -171,15 +122,15 @@ export class TimeListComponent {
     const invoiced$ = this.timeListService.invoiced.valueChanges.pipe(
       startWith(this.timeListService.invoiced.value),
     );
-    const accepted$ = this.timeListService.timeAccepted.valueChanges.pipe(
-      startWith(this.timeListService.timeAccepted.value),
+    const timeStatus$ = this.timeListService.timeStatus.valueChanges.pipe(
+      startWith(this.timeListService.timeStatus.value),
     );
 
-    const request$ = combineLatest({
+    this.timeRequest$ = combineLatest({
       search: search$,
       skip: skip$,
       // date: this.date$,
-      clientId: clientId$,
+      clientId: this.timeListService.clientId$,
       projectId: projectId$,
       staffId: staffMemberId$,
       take: itemsPerPage$,
@@ -188,14 +139,11 @@ export class TimeListComponent {
       endDate: endDate$,
       period: period$,
       invoiced: invoiced$,
-      TimeAccepted: accepted$,
+      timeStatus: timeStatus$,
       sortDirection: this.sortDirection$,
-    });
-    request$.subscribe((request) => {
-      this.timeRequest$.next(request);
-    });
+    }).pipe(shareReplay({ bufferSize: 1, refCount: false }));
 
-    const response$ = request$.pipe(
+    const response$ = this.timeRequest$.pipe(
       debounceTime(500),
       switchMap((request) => this.hqService.getTimesV1(request)),
       shareReplay({ bufferSize: 1, refCount: false }),
@@ -208,10 +156,12 @@ export class TimeListComponent {
     );
 
     this.totalRecords$ = response$.pipe(map((t) => t.total!));
-    this.times$.subscribe((records) => {
-      console.log(records);
-    });
-
+    this.billableHours$ = response$.pipe(map((t) => t.billableHours!));
+    this.TotalHours$ = response$.pipe(map((t) => t.totalHours!));
+    this.AcceptedHours$ = response$.pipe(map((t) => t.acceptedHours!));
+    this.AcceptedBillableHours$ = response$.pipe(
+      map((t) => t.acceptedBillableHours!),
+    );
     this.takeToDisplay$ = combineLatest([
       skip$,
       itemsPerPage$,
@@ -243,14 +193,15 @@ export class TimeListComponent {
 
   async exportTime() {
     const result = await firstValueFrom(
-      this.hqService.exportTimesV1(this.timeRequest$.getValue()),
+      this.timeRequest$.pipe(
+        switchMap((request) => this.hqService.exportTimesV1(request)),
+      ),
     );
+
     if (result.file === null) {
       this.toastService.show('Error', 'Unable to download export.');
       return;
     }
-
-    console.log(result);
 
     saveAs(result.file, result.fileName);
   }

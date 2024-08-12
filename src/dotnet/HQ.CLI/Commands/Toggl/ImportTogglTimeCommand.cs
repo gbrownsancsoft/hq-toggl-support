@@ -11,6 +11,7 @@ using System.Xml;
 using FluentResults;
 
 using HQ.Abstractions.ChargeCodes;
+using HQ.Abstractions.Staff;
 using HQ.Abstractions.Times;
 using HQ.Abstractions.Voltron;
 using HQ.SDK;
@@ -71,12 +72,18 @@ namespace HQ.CLI.Commands.ChargeCode
                 AnsiConsole.MarkupLine("[yellow3]No dates provided, defaulting to today[/]\n");
             }
 
+            if (_config.StaffId == null || !_config.StaffId.HasValue)
+            {
+                AnsiConsole.MarkupLine("[red]Unable to determine ID of current user[/]");
+                return 1;
+            }
+
             List<TogglRecord> records = (await GetRecordsAsync(start, end, _config.TogglUserName!, _config.TogglPassword!)) ?? new List<TogglRecord>();
 
             AnsiConsole.MarkupLine($"Processing [yellow3]{records.Count}[/] records\n");
             foreach (TogglRecord record in records)
             {
-                UpsertTimeV1.Request request = record.ToUpsertTimeV1Request();
+                UpsertTimeV1.Request request = record.ToUpsertTimeV1Request(_config.StaffId.Value);
                 AnsiConsole.MarkupLine($"[blue]{request.ChargeCode}[/] : {request.Notes}" + (!String.IsNullOrEmpty(request.Task) ? $" [yellow3]{request.Task}[/]" : "") + (!String.IsNullOrEmpty(request.ActivityName) ? $" [orangered1]{request.ActivityName}[/]" : ""));
                 var response = await _hqService.UpsertTimeEntryV1(request);
 
@@ -222,7 +229,7 @@ namespace HQ.CLI.Commands.ChargeCode
 
         public TogglRecord() { }
 
-        public UpsertTimeV1.Request ToUpsertTimeV1Request()
+        public UpsertTimeV1.Request ToUpsertTimeV1Request(Guid id)
         {
             Dictionary<string, string?> parsedDescription = ParseDescription();
 
@@ -233,7 +240,8 @@ namespace HQ.CLI.Commands.ChargeCode
                 Notes = parsedDescription["description"],
                 ChargeCode = Quote,
                 Task = parsedDescription["task"],
-                ActivityName = parsedDescription["activity"]
+                ActivityName = parsedDescription["activity"],
+                StaffId = id
             };
         }
 

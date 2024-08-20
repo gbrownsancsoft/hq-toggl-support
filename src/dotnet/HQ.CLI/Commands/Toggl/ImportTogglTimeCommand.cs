@@ -124,7 +124,7 @@ namespace HQ.CLI.Commands.ChargeCode
 
             if (records != null)
             {
-                List<TogglRecord> distinct = records.DistinctBy(t => t.Description).ToList();
+                List<TogglRecord> distinct = records.DistinctBy(t => t.Description).Where(t => t.IsValid()).ToList();
                 foreach (TogglRecord record in distinct)
                 {
                     records.Remove(record);
@@ -243,6 +243,11 @@ namespace HQ.CLI.Commands.ChargeCode
                 ActivityName = parsedDescription["activity"],
                 StaffId = id
             };
+        }
+
+        public bool IsValid()
+        {
+            return _duration > 2;
         }
 
         private Dictionary<string, string?> ParseDescription()

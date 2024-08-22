@@ -124,7 +124,8 @@ namespace HQ.CLI.Commands.ChargeCode
 
             if (records != null)
             {
-                List<TogglRecord> distinct = records.DistinctBy(t => t.Description).Where(t => t.IsValid()).ToList();
+                records = records.Where(t => t.IsValid()).ToList();
+                List<TogglRecord> distinct = records.DistinctBy(t => t.Description).ToList();
                 foreach (TogglRecord record in distinct)
                 {
                     records.Remove(record);

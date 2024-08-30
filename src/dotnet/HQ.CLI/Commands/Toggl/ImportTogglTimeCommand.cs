@@ -125,7 +125,7 @@ namespace HQ.CLI.Commands.ChargeCode
             if (records != null)
             {
                 records = records.Where(t => t.IsValid()).ToList();
-                List<TogglRecord> distinct = records.DistinctBy(t => t.Description).ToList();
+                List<TogglRecord> distinct = records.GroupBy(t => new { t.Description, t.StartDate }).Select(t => t.First()).ToList();
                 foreach (TogglRecord record in distinct)
                 {
                     records.Remove(record);
@@ -162,6 +162,14 @@ namespace HQ.CLI.Commands.ChargeCode
             set
             {
                 _startTime = new DateTime(value.Ticks, DateTimeKind.Utc);
+            }
+        }
+
+        public DateOnly StartDate
+        {
+            get
+            {
+                return DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_startTime, TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time")));
             }
         }
 

@@ -9,6 +9,7 @@ using HQ.CLI.Commands.Projects;
 using HQ.CLI.Commands.Quotes;
 using HQ.CLI.Commands.Staff;
 using HQ.CLI.Commands.TimeEntries;
+using HQ.CLI.Commands.Toggl;
 using HQ.SDK;
 
 using Microsoft.AspNetCore.DataProtection;
@@ -109,6 +110,7 @@ app.Configure(config =>
     {
         branch.AddCommand<ConfigureTogglCommand>("configure");
         branch.AddCommand<ImportTogglTimeCommand>("import-time");
+        branch.AddCommand<CsvExportTogglTimeCommand>("export-csv");
         branch.AddCommand<LayoutTogglCommand>("layout");
     });
 

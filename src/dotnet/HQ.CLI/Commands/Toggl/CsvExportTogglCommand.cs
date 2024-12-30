@@ -1,3 +1,4 @@
+using HQ.Abstractions.Staff;
 using HQ.Abstractions.Times;
 using HQ.SDK;
 
@@ -6,7 +7,7 @@ using Spectre.Console.Cli;
 
 namespace HQ.CLI.Commands.Toggl
 {
-    internal class ImportTogglTimeSettings : HQCommandSettings
+    internal class CsvExportTogglTimeSettings : HQCommandSettings
     {
         [CommandOption("--from")]
         public DateOnly? From { get; set; }
@@ -15,19 +16,21 @@ namespace HQ.CLI.Commands.Toggl
         public DateOnly? To { get; set; }
     }
 
-    internal class ImportTogglTimeCommand : AsyncCommand<ImportTogglTimeSettings>
+    internal class CsvExportTogglTimeCommand : AsyncCommand<CsvExportTogglTimeSettings>
     {
         private readonly HQServiceV1 _hqService;
         private readonly HQConfig _config;
 
-        public ImportTogglTimeCommand(HQConfig config, HQServiceV1 hqService)
+        public CsvExportTogglTimeCommand(HQConfig config, HQServiceV1 hqService)
         {
             _hqService = hqService;
             _config = config;
         }
 
-        public override async Task<int> ExecuteAsync(CommandContext context, ImportTogglTimeSettings settings)
+        public override async Task<int> ExecuteAsync(CommandContext context, CsvExportTogglTimeSettings settings)
         {
+            settings.Output = OutputFormat.CSV;
+
             if (String.IsNullOrEmpty(_config.TogglUserName) || String.IsNullOrEmpty(_config.TogglPassword))
             {
                 AnsiConsole.MarkupLine("[red]Toggl credentials must be entered before importing[/]");
@@ -62,22 +65,26 @@ namespace HQ.CLI.Commands.Toggl
                 return 1;
             }
 
+            GetStaffV1.Record? staff = (await _hqService.GetStaffV1(new()
+            {
+                Id = _config.StaffId,
+            })).Value?.Records.FirstOrDefault();
+
             List<TogglRecord> records = (await TogglOperations.GetRecordsAsync(start, end, _config.TogglUserName!, _config.TogglPassword!)) ?? new List<TogglRecord>();
 
             AnsiConsole.MarkupLine($"Processing [yellow3]{records.Count}[/] records\n");
-            foreach (TogglRecord record in records)
-            {
-                UpsertTimeV1.Request request = record.ToUpsertTimeV1Request(_config.StaffId.Value);
-                AnsiConsole.MarkupLine($"[blue]{request.ChargeCode}[/] : {request.Notes}" + (!String.IsNullOrEmpty(request.Task) ? $" [yellow3]{request.Task}[/]" : "") + (!String.IsNullOrEmpty(request.ActivityName) ? $" [orangered1]{request.ActivityName}[/]" : ""));
-                var response = await _hqService.UpsertTimeEntryV1(request);
+            List<TogglRecordCsvRow> converted = records.Where(t => t.IsValid()).Select(t => t.ToCsvRow(staff?.FirstName, staff?.LastName)).ToList();
 
-                if (!response.IsSuccess || response.Value == null)
-                {
-                    ErrorHelper.Display(response);
-                }
-            }
-
-            AnsiConsole.MarkupLine("\nImport Complete, [bold underline]Verify Entries in HQ Before Submitting[/]");
+            OutputHelper.Create(converted, converted)
+                .WithColumn("DATE", t => t.Date)
+                .WithColumn("STAFF", t => t.Staff)
+                .WithColumn("CLIENT", t => t.Client)
+                .WithColumn("QUOTE", t => t.Quote)
+                .WithColumn("HOURS", t => t.Hours)
+                .WithColumn("BILLABLE", t => t.Billable)
+                .WithColumn("Notes", t => t.Notes)
+                .WithColumn("ACTIVITY / TASK", t => t.Activity)
+                .Output(settings.Output);
 
             return 0;
         }

@@ -151,12 +151,20 @@ public class ChargeCodeServiceV1
             ProjectId = t.Project != null ? t.Project.Id : null,
             ClientName = t.Project != null ? t.Project.Client.Name : null,
             ClientId = t.Project != null ? t.Project.Client.Id : null,
-
+            MaximumTimeEntryHours = t.Project != null ? t.Project.TimeEntryMaxHours : 0,
             QuoteName = t.Quote != null ? t.Quote.Name : null,
             ServiceAgreementName = t.ServiceAgreement != null ? t.ServiceAgreement.Name : null,
             QuoteId = t.QuoteId != null ? t.QuoteId : null,
             ServiceAgreementId = t.ServiceAgreementId != null ? t.ServiceAgreementId : null,
             Description = t.Description,
+            RequireTask = t.Project != null ? t.Project.RequireTask : false,
+            Activities = t.Project != null && t.Project.Activities != null
+    ? t.Project.Activities.Select(a => new GetChargeCodesV1.Activity
+    {
+        Name = a.Name,
+        Id = a.Id,
+    }).ToList()
+    : new List<GetChargeCodesV1.Activity>(),
             IsProjectMember = !request.StaffId.HasValue ? null : t.Project!.ProjectMembers.Any(x => x.StaffId == request.StaffId.Value),
             IsProjectMemberSort = !request.StaffId.HasValue ? 1 : (t.Project!.ProjectMembers.Any(x => x.StaffId == request.StaffId.Value)) ? 0 : 1
         });

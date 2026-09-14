@@ -18,9 +18,9 @@ public class GetStaffV1
         public string? Status { get; set; }
         public Jurisdiciton? Jurisdiciton { get; set; }
         public bool? IsAssignedProjectManager { get; set; }
-        public SortColumn SortBy { get; set; } = SortColumn.FirstName;
+        public SortColumn SortBy { get; set; } = SortColumn.Name;
         public SortDirection SortDirection { get; set; } = SortDirection.Asc;
-        public bool? CurrentOnly { get; set; } = true;
+        public bool? CurrentOnly { get; set; }
         public Guid? ProjectId { get; set; }
         public Guid? ExcludeProjectId { get; set; }
     }
@@ -59,5 +59,6 @@ public class GetStaffV1
         public string? FirstName { get; set; }
         public string? LastName { get; set; }
         public string? Email { get; set; }
+        public DateOnly? TimeEntryCutoffDate { get; set; }
     }
 }

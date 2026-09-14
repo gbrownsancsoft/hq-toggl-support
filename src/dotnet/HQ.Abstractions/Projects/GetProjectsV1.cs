@@ -22,6 +22,7 @@ public class GetProjectsV1
         public SortColumn SortBy { get; set; } = SortColumn.ProjectName;
         public SortDirection SortDirection { get; set; } = SortDirection.Asc;
         public ProjectStatus? ProjectStatus { get; set; }
+        public bool? CurrentOnly { get; set; }
     }
 
     public enum SortColumn
@@ -114,5 +115,7 @@ public class GetProjectsV1
         public bool Billable { get; set; }
         public decimal? ProjectBookingHours { get; set; }
         public decimal? ProjectTotalHours { get; set; }
+        public bool RequireTask { get; set; }
+
     }
 }

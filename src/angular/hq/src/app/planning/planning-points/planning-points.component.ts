@@ -1,50 +1,83 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CoreModule } from '../../core/core.module';
 import {
   BehaviorSubject,
   combineLatest,
   debounceTime,
+  map,
   Observable,
+  ReplaySubject,
   shareReplay,
   switchMap,
+  takeUntil,
   tap,
 } from 'rxjs';
 import { localISODate } from '../../common/functions/local-iso-date';
 import { HQService } from '../../services/hq.service';
 import { chargeCodeToColor } from '../../common/functions/charge-code-to-color';
-import { GetPointsSummaryResponseV1 } from '../../models/Points/get-points-summary-v1';
+import {
+  GetPointsSummaryResponseV1,
+  GetPointsSummaryPlanningPoint,
+  GetPointSummaryV1StaffSummary,
+} from '../../models/Points/get-points-summary-v1';
 import { RouterLink } from '@angular/router';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { formControlChanges } from '../../core/functions/form-control-changes';
+import { PlanningPointsModalComponent } from '../planning-points-modal/planning-points-modal.component';
+import { Dialog } from '@angular/cdk/dialog';
+import { SelectInputComponent } from '../../core/components/select-input/select-input.component';
+import { HQRole } from '../../enums/hqrole';
+import { InRolePipe } from '../../pipes/in-role.pipe';
+import { GetStaffV1Record } from '../../models/staff-members/get-staff-member-v1';
 
 @Component({
   selector: 'hq-planning-points',
-  standalone: true,
   imports: [
     CommonModule,
     CoreModule,
     RouterLink,
+    InRolePipe,
     FormsModule,
     ReactiveFormsModule,
+    SelectInputComponent,
   ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './planning-points.component.html',
 })
-export class PlanningPointsComponent {
+export class PlanningPointsComponent implements OnDestroy {
   search = new FormControl<string | null>(null);
+  isCompleted = new FormControl<boolean | null>(null);
+  projectManagerId = new FormControl<string | null>(null);
+
   search$ = formControlChanges(this.search);
+  isCompleted$ = formControlChanges(this.isCompleted);
+  projectManagerId$ = formControlChanges(this.projectManagerId);
+  projectManagers$: Observable<GetStaffV1Record[]>;
 
   date = new BehaviorSubject<string>(localISODate());
+  opacity = new BehaviorSubject<number>(0.25);
+
   loading = new BehaviorSubject<boolean>(true);
+  refresh$ = new BehaviorSubject<boolean>(false);
 
   chargeCodeToColor = chargeCodeToColor;
+  private destroyed$: ReplaySubject<boolean> = new ReplaySubject(1);
+
+  HQRole = HQRole;
 
   summary$: Observable<GetPointsSummaryResponseV1>;
 
-  constructor(public hqService: HQService) {
+  constructor(
+    public hqService: HQService,
+    public dialog: Dialog,
+  ) {
     this.summary$ = combineLatest({
       date: this.date,
       search: this.search$,
+      refresh: this.refresh$,
+      isCompleted: this.isCompleted$,
+      projectManagerId: this.projectManagerId$,
     }).pipe(
       debounceTime(500),
       tap(() => this.loading.next(true)),
@@ -52,10 +85,91 @@ export class PlanningPointsComponent {
         this.hqService.getPointsSummaryV1({
           date: t.date,
           search: t.search,
+          isCompleted: t.isCompleted,
+          projectManagerId: t.projectManagerId,
         }),
       ),
       tap(() => this.loading.next(false)),
       shareReplay({ bufferSize: 1, refCount: false }),
     );
+    this.projectManagers$ = this.hqService
+      .getStaffMembersV1({
+        isAssignedProjectManager: true,
+      })
+      .pipe(
+        map((t) => t.records),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
+  }
+  ngOnDestroy(): void {
+    this.destroyed$.next(true);
+    this.destroyed$.complete();
+  }
+
+  getDisplayName(point: GetPointsSummaryPlanningPoint) {
+    let displayName = `${point.chargeCode![0]}: ${point.clientName}: ${point.projectName}`;
+    if (displayName.length > 20) {
+      displayName = displayName.slice(0, 18) + '..';
+    }
+
+    return displayName;
+  }
+
+  editStaffPlanningPoint(staff: GetPointSummaryV1StaffSummary) {
+    const dialogRef = this.dialog.open<boolean>(PlanningPointsModalComponent, {
+      width: '600px',
+      data: {
+        title: staff.staffName,
+        staffId: staff.staffId,
+        date: this.date.value,
+      },
+    });
+
+    // eslint-disable-next-line rxjs-angular-x/prefer-async-pipe
+    dialogRef.closed.pipe(takeUntil(this.destroyed$)).subscribe({
+      next: (result) => {
+        console.log('The dialog was closed', result);
+        if (result) {
+          this.refresh$.next(true);
+        }
+      },
+      error: console.error,
+    });
+  }
+  configureChargeCodeColorOpacity(point: GetPointsSummaryPlanningPoint) {
+    const chargeCodeId = point.chargeCodeId;
+    const defaultOpacity = 0.25;
+    const matchingOpacity = 0.5;
+    const nonMatchingOpacity = 0.05;
+
+    const searchValue = this.search.value?.toLowerCase();
+
+    if (!searchValue?.trim().length) {
+      return chargeCodeToColor(chargeCodeId, defaultOpacity);
+    }
+
+    return this.isNonMatched(point)
+      ? chargeCodeToColor(chargeCodeId, nonMatchingOpacity)
+      : chargeCodeToColor(chargeCodeId, matchingOpacity);
+  }
+
+  isNonMatched(point: GetPointsSummaryPlanningPoint) {
+    const searchValue = this.search.value?.toLowerCase();
+    const projectManagerId = this.projectManagerId.value;
+
+    if (!searchValue?.trim().length && !projectManagerId) {
+      return false;
+    }
+
+    const matchesSearch =
+      !searchValue?.trim().length ||
+      point.clientName?.toLowerCase()?.includes(searchValue) ||
+      point.projectName?.toLowerCase()?.includes(searchValue) ||
+      point.chargeCode?.toLowerCase()?.includes(searchValue);
+
+    const matchesProjectManager =
+      !projectManagerId || point.projectManagerId === projectManagerId;
+
+    return !matchesSearch || !matchesProjectManager;
   }
 }

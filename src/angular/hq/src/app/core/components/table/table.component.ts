@@ -3,6 +3,8 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
+  Input,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { PagedResponseV1 } from '../../../models/common/paged-response-v1';
 import { BaseListService } from '../../services/base-list.service';
@@ -12,16 +14,16 @@ import { PaginatorComponent } from '../../../common/paginator/paginator.componen
 
 @Component({
   selector: 'hq-table',
-  standalone: true,
   imports: [FormsModule, ReactiveFormsModule, CommonModule, PaginatorComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './table.component.html',
 })
 export class TableComponent<
   TResponse extends PagedResponseV1<TRecord>,
   TRecord,
   TSort,
-> implements AfterViewChecked
-{
+> implements AfterViewChecked {
+  @Input() withPagination = true;
   public columnCount: number = 0;
 
   constructor(

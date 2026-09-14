@@ -1,12 +1,13 @@
 import { PagedResponseV1 } from '../common/paged-response-v1';
 
 export interface GetProjectActivityRequestV1 {
-  projectId: string | null;
+  projectId?: string | null;
 }
 export interface GetProjectActivityRecordV1 {
   id: string;
   name: string;
   sequence: number;
+  projectId: string;
 }
 
 export interface GetProjectActivityRecordsV1 {
@@ -14,5 +15,4 @@ export interface GetProjectActivityRecordsV1 {
   total: number | null;
 }
 
-export interface GetProjectActivitiesResponseV1
-  extends PagedResponseV1<GetProjectActivityRecordV1> {}
+export interface GetProjectActivitiesResponseV1 extends PagedResponseV1<GetProjectActivityRecordV1> {}

@@ -75,6 +75,7 @@ public class ProjectServiceV1
                 project.Status = request.Status;
                 project.TotalHours = request.TotalHours;
                 project.TimeEntryMaxHours = request.TimeEntryMaxHours ?? 4; // default to 4 hours
+                project.RequireTask = request.RequireTask;
 
                 switch (request.Type)
                 {
@@ -96,7 +97,7 @@ public class ProjectServiceV1
                         }
                         break;
                     case ProjectType.Ongoing:
-                        var latestProjectNumber = await _context.Projects.Where(t => t.Id != request.Id).MaxAsync((q) => q.ProjectNumber, ct);
+                        var latestProjectNumber = await _context.Projects.Where(t => t.Id != request.Id).MaxAsync((q) => (int?)q.ProjectNumber, ct) ?? 0;
                         var nextProjectNumber = latestProjectNumber + 1;
 
                         if (request.ProjectNumber.HasValue)
@@ -121,7 +122,7 @@ public class ProjectServiceV1
                             project.ChargeCode.Activity = ChargeCodeActivity.Project;
                         }
 
-                        project.ChargeCode.Code = "P" + project.ProjectNumber.Value;
+                        project.ChargeCode.Code = "P" + project.ProjectNumber!.Value;
 
                         break;
                     case ProjectType.Quote:
@@ -237,6 +238,13 @@ public class ProjectServiceV1
         {
             records = records.Where(t => t.Status == request.ProjectStatus);
         }
+        if (request.CurrentOnly.HasValue)
+        {
+            if (request.CurrentOnly.Value)
+            {
+                records = records.Where(t => t.Status == ProjectStatus.InProduction || t.Status == ProjectStatus.Ongoing);
+            }
+        }
         var bookingStartDate = DateOnly.FromDateTime(DateTime.Today).GetPeriodStartDate(Period.Month);
         var bookingEndDate = DateOnly.FromDateTime(DateTime.Today).GetPeriodEndDate(Period.Month);
 
@@ -268,6 +276,7 @@ public class ProjectServiceV1
             Type = t.Type,
             Billable = t.ChargeCode!.Billable,
             ProjectTotalHours = t.TotalHours,
+            RequireTask = t.RequireTask,
 
             BookingStartDate = t.ChargeCode!.Times.Where(x => x.Date >= bookingStartDate && x.Date <= bookingEndDate).Min(x => x.Date),
             BookingEndDate = t.ChargeCode!.Times.Where(x => x.Date >= bookingStartDate && x.Date <= bookingEndDate).Max(x => x.Date),
@@ -307,6 +316,7 @@ public class ProjectServiceV1
             Type = t.Type,
             Billable = t.Billable,
             ProjectTotalHours = t.ProjectTotalHours,
+            RequireTask = t.RequireTask,
 
             BookingStartDate = t.BookingStartDate,
             BookingEndDate = t.BookingEndDate,
@@ -451,7 +461,7 @@ public class ProjectServiceV1
         {
             return Result.Fail("Activity has time associated with it, unable to delete");
         }
-        var projectActivity = await _context.ProjectActivities.FindAsync(request.Id, ct);
+        var projectActivity = await _context.ProjectActivities.SingleOrDefaultAsync(t => t.ProjectId == request.ProjectId && t.Id == request.Id, ct);
         if (projectActivity != null)
         {
             _context.ProjectActivities.Remove(projectActivity);
@@ -461,12 +471,13 @@ public class ProjectServiceV1
     }
     public async Task<Result<GetProjectActivitiesV1.Response>> GetProjectActivitiesV1(GetProjectActivitiesV1.Request request, CancellationToken ct = default)
     {
-        var records = _context.ProjectActivities.Where(t => t.ProjectId == request.ProjectId)
+        var records = _context.ProjectActivities.Where(t => request.ProjectId == null || t.ProjectId == request.ProjectId)
             .Select(t => new GetProjectActivitiesV1.Record()
             {
                 Id = t.Id,
                 Name = t.Name,
-                Sequence = t.Sequence
+                Sequence = t.Sequence,
+                ProjectId = t.ProjectId
             })
             .OrderBy(t => t.Name);
         return new GetProjectActivitiesV1.Response()

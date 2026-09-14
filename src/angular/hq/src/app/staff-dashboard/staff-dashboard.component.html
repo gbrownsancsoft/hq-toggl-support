@@ -12,13 +12,9 @@
           class="bg-blue-900 border-steel-blue-600 hover:cursor-pointer w-full pl-2 pr-[43px] appearance-none focus:outline-none font-medium row-start-1 col-start-1 border text-gray-100 h-[26px] capitalize"
         >
           <option selected [ngValue]="null">Select Status</option>
-          <option [ngValue]="'in the office'">In the office</option>
-          <option [ngValue]="'working from home'">Working from home</option>
-          <option [ngValue]="'sick'">Sick</option>
-          <option [ngValue]="'vacation'">Vacation</option>
-          <option [ngValue]="'holiday'">Holiday</option>
-
-          <!-- <option [ngValue]="staffDashboardService.Period.Month">Month</option> -->
+          @for (status of staffStatus; track $index) {
+            <option [ngValue]="status">{{ status }}</option>
+          }
         </select>
         <span
           [ngClass]="{
@@ -33,8 +29,8 @@
         </span>
       </div>
       <!-- <div class="font-open-sans text-nav-disabled text-xs font-bold uppercase">
-        {{ (staffStatus$ | async)?.status ?? "Work from Office" }}
-      </div> -->
+      {{ (staffStatus$ | async)?.status ?? "Work from Office" }}
+    </div> -->
     </div>
     <div class="flex space-x-8 p-4">
       <div class="text-center text-white">
@@ -117,13 +113,14 @@
   <hq-panel
     [Direction]="'horizontal'"
     GutterVariant="secondary"
-    [CSizes]="[74, 26]"
+    [CSizes]="[78, 22]"
   >
     <div first class="h-full">
       <div class="px-5 py-2 bg-black-alt">
         <div class="flex gap-[20px] justify-between items-center">
           <hq-staff-dashboard-date-range />
-          <div>
+
+          <div class="flex gap-3">
             @if (staffDashboardService.rejectedCount$ | async) {
               <button
                 [title]="
@@ -143,27 +140,87 @@
                   [class.border]="
                     staffDashboardService.showAllRejectedTimes$ | async
                   "
-                  class="bi bi-exclamation-triangle-fill py-2 px-2 rounded-sm mr-3 text-white bg-red-700"
+                  class="bi bi-exclamation-triangle-fill py-2 px-2 rounded-sm text-white bg-red-700"
                 ></i>
               </button>
             }
+
+            <!-- allow admin to: unsubmit all times in view only if the status is submitted (day, week or month) -->
+            @if (([HQRole.Administrator] | inRole | async) && admin) {
+              <button
+                [title]="
+                  (staffDashboardService.canUnsubmit$ | async)
+                    ? 'UnSubmit all submitted time entries for the shown date period'
+                    : 'No time entries to be unsubmitted '
+                "
+                [disabled]="
+                  (staffDashboardService.canUnsubmit$ | async) === false
+                "
+                [ngClass]="{
+                  'text-gray-50 border-gray-500 bg-gray-500 ':
+                    (staffDashboardService.canUnsubmit$ | async) === false,
+                  'border-orange-500 bg-orange-500 hover:bg-orange-600 hover:border-orange-600 text-white':
+                    (staffDashboardService.canUnsubmit$ | async),
+                }"
+                class="inline-block text-center px-2 py-2 border rounded min-w-[120px] font-normal"
+                type="button"
+                (click)="unSubmitTimes()"
+              >
+                Unsubmit
+              </button>
+            }
+
+            <!-- allow admin to: set the staff time entry cut off date to the start date of the selected (day, week or month) -->
+            @if (([HQRole.Administrator] | inRole | async) && admin) {
+              <button
+                [title]="
+                  (staffDashboardService.canUnlock$ | async)
+                    ? 'Unloack all time entries for the shown date period'
+                    : 'No time entries to be unlocked '
+                "
+                [disabled]="
+                  (staffDashboardService.canUnlock$ | async) === false
+                "
+                [ngClass]="{
+                  'text-gray-50 border-gray-500 bg-gray-500 ':
+                    (staffDashboardService.canUnlock$ | async) === false,
+                  'border-orange-500 bg-orange-500 hover:bg-orange-600 hover:border-orange-600 text-white':
+                    (staffDashboardService.canUnlock$ | async),
+                }"
+                class="inline-block text-center px-2 py-2 border rounded min-w-[120px] font-normal"
+                type="button"
+                (click)="unlockTimes()"
+              >
+                Unlock
+              </button>
+            }
+
+            <!-- allow admin to: submit all entries -->
             <button
               [title]="
-                (staffDashboardService.canSubmit$ | async)
+                (staffDashboardService.canSubmit$ | async) ||
+                ((staffDashboardService.canSubmit$ | async) &&
+                  ([HQRole.Administrator] | inRole | async))
                   ? 'Submit all time entries for the shown date period'
                   : 'No time entries to be submitted '
               "
               [disabled]="
                 (staffDashboardService.canSubmit$ | async) === false ||
-                (canEdit$ | async) === false
+                (canEdit$ | async) === false ||
+                ((staffDashboardService.canSubmit$ | async) === false &&
+                  ([HQRole.Administrator] | inRole | async))
               "
               [ngClass]="{
                 'text-gray-50 border-gray-500 bg-gray-500 ':
                   (staffDashboardService.canSubmit$ | async) === false ||
-                  (canEdit$ | async) === false,
+                  (canEdit$ | async) === false ||
+                  ((staffDashboardService.canSubmit$ | async) === false &&
+                    ([HQRole.Administrator] | inRole | async)),
                 'border-orange-500 bg-orange-500 hover:bg-orange-600 hover:border-orange-600 text-white':
-                  (staffDashboardService.canSubmit$ | async) &&
-                  (canEdit$ | async) === true,
+                  ((staffDashboardService.canSubmit$ | async) &&
+                    (canEdit$ | async) === true) ||
+                  ((staffDashboardService.canSubmit$ | async) &&
+                    ([HQRole.Administrator] | inRole | async)),
               }"
               class="inline-block text-center px-2 py-2 border rounded min-w-[120px] font-normal"
               type="button"
@@ -198,9 +255,9 @@
 
       <div class="w-full h-[calc(100dvh-345px)]">
         <!-- @if (
-    staffDashboardService.period.value === Period.Week ||
-    (staffDashboardService.showAllRejectedTimes$ | async)
-  ) { -->
+            staffDashboardService.period.value === Period.Week ||
+            (staffDashboardService.showAllRejectedTimes$ | async)
+            ) { -->
         <div
           [hidden]="
             staffDashboardService.period.value === Period.Today &&
@@ -208,112 +265,134 @@
           "
         >
           @if (staffDashboardService.time$ | async; as dashboard) {
-            @for (date of dashboard.dates; track date.date) {
-              @if (dashboard.dates.length > 1) {
-                <div
-                  class="px-5 pb-1 pt-4 font-open-sans text-nav-disabled text-xs font-bold uppercase flex justify-between"
-                >
-                  <div>{{ date.date | date: "EEEE" }} | {{ date.date }}</div>
-                  <div>{{ date.totalHours | number: "1.2-2" }} hours</div>
-                </div>
+            @if (staffDashboardService.period.value === Period.Month) {
+              <hq-staff-dashboard-month-view
+                [dashboard]="dashboard"
+                [chargeCodes]="staffDashboardService.chargeCodes$ | async"
+                [showAllRejectedTimes]="
+                  staffDashboardService.showAllRejectedTimes$ | async
+                "
+                [canEdit]="staffDashboardService.canEdit$ | async"
+                (timeChange)="upsertTime($event)"
+                (timeDelete)="deleteTime($event)"
+                (timeDuplicate)="duplicateTime($event)"
+              ></hq-staff-dashboard-month-view>
+            } @else {
+              @for (date of dashboard.dates; track date.date) {
+                @if (dashboard.dates.length > 1) {
+                  <div
+                    class="px-5 pb-1 pt-4 font-open-sans text-nav-disabled text-xs font-bold uppercase flex justify-between"
+                  >
+                    <div>{{ date.date | date: "EEEE" }} | {{ date.date }}</div>
+                    <div>{{ date.totalHours | number: "1.2-2" }} hours</div>
+                  </div>
+                }
+                <table class="w-full border-spacing-0 border-separate">
+                  <thead>
+                    <tr class="top-0 text-left">
+                      <th
+                        scope="col"
+                        class="bg-blue-900 border-steel-blue-600 border-y py-3 pr-2 text-nowrap w-3"
+                      ></th>
+                      <th
+                        width="28"
+                        scope="col"
+                        class="bg-blue-900 border-steel-blue-600 border-y py-3 pr-2 text-nowrap"
+                      ></th>
+                      <th
+                        width="80"
+                        class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-3 text-nowrap"
+                      >
+                        Hrs
+                      </th>
+                      <th
+                        width="100"
+                        class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
+                      >
+                        Date
+                      </th>
+                      <th
+                        width="160"
+                        class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-5 text-nowrap"
+                      >
+                        Chrg Code
+                      </th>
+                      <th
+                        width="160"
+                        class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
+                      >
+                        Client
+                      </th>
+                      <th
+                        width="160"
+                        class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
+                      >
+                        Project
+                      </th>
+                      <th
+                        width="180"
+                        class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2 text-nowrap"
+                      >
+                        Activity
+                      </th>
+                      <th
+                        width="150"
+                        class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2 text-nowrap"
+                      >
+                        Task
+                      </th>
+                      <th
+                        class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
+                      >
+                        Description
+                      </th>
+                      <th
+                        width="40"
+                        class="bg-blue-900 border-steel-blue-600 border-y"
+                      ></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @if (
+                      (staffDashboardService.showAllRejectedTimes$ | async) ===
+                        false &&
+                      (staffDashboardService.canEdit$ | async) &&
+                      date.canCreateTime
+                    ) {
+                      <tr
+                        hq-staff-dashboard-time-entry
+                        (hqTimeChange)="upsertTime($event)"
+                        [chargeCodes]="
+                          staffDashboardService.chargeCodes$ | async
+                        "
+                        [time]="{
+                          date: date.date,
+                          timeStatus: timeStatus.Unsubmitted,
+                        }"
+                      ></tr>
+                    }
+                    @for (time of date.times; track time.id) {
+                      <tr
+                        hq-staff-dashboard-time-entry
+                        [chargeCodes]="
+                          staffDashboardService.chargeCodes$ | async
+                        "
+                        (hqTimeChange)="upsertTime($event)"
+                        (hqTimeDelete)="deleteTime($event)"
+                        (hqTimeDuplicate)="duplicateTime($event)"
+                        [time]="time"
+                      ></tr>
+                    }
+                  </tbody>
+                </table>
               }
-              <table
-                class="w-full border-spacing-0 border-separate table-fixed"
-              >
-                <thead>
-                  <tr class="top-0 text-left">
-                    <th
-                      scope="col"
-                      class="bg-blue-900 border-steel-blue-600 border-y py-3 pr-2 text-nowrap w-3"
-                    ></th>
-                    <th
-                      width="28"
-                      scope="col"
-                      class="bg-blue-900 border-steel-blue-600 border-y py-3 pr-2 text-nowrap"
-                    ></th>
-                    <th
-                      width="80"
-                      class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-3 text-nowrap"
-                    >
-                      Hrs
-                    </th>
-                    <th
-                      width="160"
-                      class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
-                    >
-                      Date
-                    </th>
-                    <th
-                      class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-5 text-nowrap"
-                    >
-                      Chrg Code
-                    </th>
-                    <th
-                      width="160"
-                      class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
-                    >
-                      Client
-                    </th>
-                    <th
-                      width="160"
-                      class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
-                    >
-                      Project
-                    </th>
-                    <th
-                      width="160"
-                      class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2 text-nowrap"
-                    >
-                      Activity / Task
-                    </th>
-                    <th
-                      class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
-                    >
-                      Description
-                    </th>
-                    <th
-                      width="40"
-                      class="bg-blue-900 border-steel-blue-600 border-y"
-                    ></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @if (
-                    (staffDashboardService.showAllRejectedTimes$ | async) ===
-                      false &&
-                    (staffDashboardService.canEdit$ | async) &&
-                    date.canCreateTime
-                  ) {
-                    <tr
-                      hq-staff-dashboard-time-entry
-                      (hqTimeChange)="upsertTime($event)"
-                      [chargeCodes]="chargeCodes$ | async"
-                      [time]="{
-                        date: date.date,
-                        timeStatus: timeStatus.Unsubmitted,
-                      }"
-                    ></tr>
-                  }
-                  @for (time of date.times; track time.id) {
-                    <tr
-                      hq-staff-dashboard-time-entry
-                      [chargeCodes]="chargeCodes$ | async"
-                      (hqTimeChange)="upsertTime($event)"
-                      (hqTimeDelete)="deleteTime($event)"
-                      (hqTimeDuplicate)="duplicateTime($event)"
-                      [time]="time"
-                    ></tr>
-                  }
-                </tbody>
-              </table>
             }
           }
         </div>
-        <!-- } @else { -->
         <div
           class="h-full"
           [hidden]="
-            staffDashboardService.period.value === Period.Week ||
+            staffDashboardService.period.value !== Period.Today ||
             (staffDashboardService.showAllRejectedTimes$ | async)
           "
         >
@@ -328,11 +407,11 @@
               </div>
               <div class="flex ml-aut float-right gap-2">
                 <!-- <button>
-            <i
-              title="Download report"
-              class="bi bi-cloud-download-fill text-white"
-            ></i>
-          </button> -->
+                    <i
+                      title="Download report"
+                      class="bi bi-cloud-download-fill text-white"
+                    ></i>
+                  </button> -->
                 <button
                   title="Insert Previous Report"
                   [disabled]="prevPSRReportButtonState === ButtonState.Disabled"
@@ -361,12 +440,12 @@
               <ngx-monaco-editor
                 first
                 [ngStyle]="{ height: '100%' }"
-                [options]="editorOptions$ | async"
+                [options]="(editorOptions$ | async) || defaultEditorOptions"
                 [formControl]="plan"
                 (onInit)="onEditorInit($event)"
               ></ngx-monaco-editor>
 
-              <div class="bg-black-alt h-full" second>
+              <div class="bg-black-alt h-full overflow-auto" second>
                 <hq-markdown [data]="plan.value"></hq-markdown>
               </div>
             </hq-panel>
@@ -397,39 +476,85 @@
                         ></th>
                         <th
                           width="80"
-                          class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-3 text-nowrap"
+                          class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-3 text-nowrap cursor-pointer"
+                          (click)="onSortClick(sortColumn.Hours)"
                         >
                           Hrs
+                          <hq-sort-icon
+                            [column]="sortColumn.Hours"
+                            [activeColumn]="
+                              staffDashboardService.sortOption$ | async
+                            "
+                            [activeSortDirection]="
+                              staffDashboardService.sortDirection$ | async
+                            "
+                          />
                         </th>
                         <th
-                          width="160"
+                          width="100"
                           class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
                         >
                           Date
                         </th>
                         <th
                           width="160"
-                          class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-5"
+                          class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-5 cursor-pointer"
+                          (click)="onSortClick(sortColumn.ChargeCode)"
                         >
                           Chrg Code
+                          <hq-sort-icon
+                            [column]="sortColumn.ChargeCode"
+                            [activeColumn]="
+                              staffDashboardService.sortOption$ | async
+                            "
+                            [activeSortDirection]="
+                              staffDashboardService.sortDirection$ | async
+                            "
+                          />
                         </th>
                         <th
                           width="160"
-                          class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
+                          class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2 cursor-pointer"
+                          (click)="onSortClick(sortColumn.ClientName)"
                         >
                           Client
+                          <hq-sort-icon
+                            [column]="sortColumn.ClientName"
+                            [activeColumn]="
+                              staffDashboardService.sortOption$ | async
+                            "
+                            [activeSortDirection]="
+                              staffDashboardService.sortDirection$ | async
+                            "
+                          />
                         </th>
                         <th
                           width="160"
-                          class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
+                          class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2 cursor-pointer"
+                          (click)="onSortClick(sortColumn.ProjectName)"
                         >
                           Project
+                          <hq-sort-icon
+                            [column]="sortColumn.ProjectName"
+                            [activeColumn]="
+                              staffDashboardService.sortOption$ | async
+                            "
+                            [activeSortDirection]="
+                              staffDashboardService.sortDirection$ | async
+                            "
+                          />
                         </th>
                         <th
-                          width="160"
+                          width="180"
                           class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2 text-nowrap"
                         >
-                          Activity / Task
+                          Activity
+                        </th>
+                        <th
+                          width="150"
+                          class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2 text-nowrap"
+                        >
+                          Task
                         </th>
                         <th
                           class="bg-blue-900 border-steel-blue-600 border-y py-3 pl-2"
@@ -451,7 +576,9 @@
                       ) {
                         <tr
                           hq-staff-dashboard-time-entry
-                          [chargeCodes]="chargeCodes$ | async"
+                          [chargeCodes]="
+                            staffDashboardService.chargeCodes$ | async
+                          "
                           (hqTimeChange)="upsertTime($event)"
                           [time]="{
                             date: date.date,
@@ -462,7 +589,9 @@
                       @for (time of date.times; track time.id) {
                         <tr
                           hq-staff-dashboard-time-entry
-                          [chargeCodes]="chargeCodes$ | async"
+                          [chargeCodes]="
+                            staffDashboardService.chargeCodes$ | async
+                          "
                           (hqTimeChange)="upsertTime($event)"
                           (hqTimeDelete)="deleteTime($event)"
                           (hqTimeDuplicate)="duplicateTime($event)"
@@ -476,7 +605,6 @@
             </div>
           </hq-panel>
         </div>
-        <!-- } -->
       </div>
     </div>
     <div second class="border-b-black border-b-[1px] pb-2">

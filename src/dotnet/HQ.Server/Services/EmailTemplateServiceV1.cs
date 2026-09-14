@@ -21,6 +21,7 @@ using Microsoft.EntityFrameworkCore;
 using Mjml.Net;
 
 namespace HQ.Server.Services;
+
 public class EmailTemplateServiceV1
 {
     private readonly HQDbContext _context;
@@ -41,7 +42,6 @@ public class EmailTemplateServiceV1
         var mjmlRenderer = new MjmlRenderer();
         var mjmlOptions = new MjmlOptions()
         {
-            Minify = true,
             Beautify = false,
         };
 

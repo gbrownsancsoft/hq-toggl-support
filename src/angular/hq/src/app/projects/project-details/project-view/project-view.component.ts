@@ -1,12 +1,7 @@
 import { HQService } from '../../../services/hq.service';
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy } from '@angular/core';
-import {
-  ActivatedRoute,
-  Router,
-  RouterLink,
-  RouterLinkActive,
-} from '@angular/router';
+import { Component, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   Observable,
   Subject,
@@ -15,7 +10,6 @@ import {
   switchMap,
   takeUntil,
 } from 'rxjs';
-import { PdfViewerComponent } from '../../../core/components/pdf-viewer/pdf-viewer.component';
 import { Period } from '../../../enums/period';
 import {
   FormControl,
@@ -55,20 +49,19 @@ interface Form {
   status: FormControl<ProjectStatus | null>;
   totalHours: FormControl<number | null>;
   projectNumber: FormControl<number | null>;
+  requireTask: FormControl<boolean | null>;
 }
 
 @Component({
   selector: 'hq-project-view',
-  standalone: true,
   imports: [
     CommonModule,
     RouterLink,
-    RouterLinkActive,
-    PdfViewerComponent,
     CoreModule,
     ReactiveFormsModule,
     InRolePipe,
   ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './project-view.component.html',
 })
 export class ProjectViewComponent implements OnDestroy {
@@ -106,6 +99,7 @@ export class ProjectViewComponent implements OnDestroy {
     billable: new FormControl(true, { nonNullable: true }),
     bookingHours: new FormControl(null, [Validators.required]),
     projectNumber: new FormControl(null),
+    requireTask: new FormControl(false),
   });
 
   constructor(
@@ -139,7 +133,7 @@ export class ProjectViewComponent implements OnDestroy {
     );
     this.projectDetailService.project$
       .pipe(takeUntil(this.destroy$))
-      // eslint-disable-next-line rxjs-angular/prefer-async-pipe
+      // eslint-disable-next-line rxjs-angular-x/prefer-async-pipe
       .subscribe({
         next: (project) => {
           this.form.patchValue({
@@ -158,6 +152,7 @@ export class ProjectViewComponent implements OnDestroy {
             billable: project.billable,
             bookingHours: project.projectBookingHours,
             projectNumber: project.projectNumber,
+            requireTask: project.requireTask,
           });
         },
         error: console.error,

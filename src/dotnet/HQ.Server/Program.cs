@@ -1,4 +1,9 @@
+using System.Collections.Frozen;
+using System.Diagnostics;
 using System.Net;
+using System.Security.Claims;
+
+using Duende.AccessTokenManagement.OpenIdConnect;
 
 using Hangfire;
 
@@ -20,7 +25,14 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
+
+using Npgsql;
+
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 using Swashbuckle.AspNetCore.Filters;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -30,6 +42,35 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables("HQ_");
 
 var serverOptions = builder.Configuration.GetSection(HQServerOptions.Server).Get<HQServerOptions>() ?? throw new Exception("Error parsing configuration section 'Server'.");
+
+if (serverOptions.OpenTelemetry && serverOptions.OpenTelemetryEndpointUrl != null)
+{
+    var serviceName = "hq-server";
+    var serviceVersion = VersionNumber.GetVersionNumber();
+
+    builder.Logging.AddOpenTelemetry(logging =>
+    {
+        logging.IncludeFormattedMessage = true;
+        logging.IncludeScopes = true;
+    });
+
+    builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddService(serviceName: serviceName, serviceVersion: serviceVersion))
+        .WithTracing(tracing => tracing
+            .AddAspNetCoreInstrumentation()
+            .AddNpgsql()
+            .AddHttpClientInstrumentation()
+            .AddHangfireInstrumentation()
+            .AddOtlpExporter(o => o.Endpoint = serverOptions.OpenTelemetryEndpointUrl))
+        .WithMetrics(metrics => metrics
+            .AddAspNetCoreInstrumentation()
+            .AddProcessInstrumentation()
+            .AddHttpClientInstrumentation()
+            .SetExemplarFilter(ExemplarFilterType.TraceBased)
+            .AddOtlpExporter(o => o.Endpoint = serverOptions.OpenTelemetryEndpointUrl))
+        .WithLogging(logging => logging
+            .AddOtlpExporter(o => o.Endpoint = serverOptions.OpenTelemetryEndpointUrl));
+}
 
 // Add services to the container.
 builder.Services.AddHealthChecks();
@@ -46,14 +87,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
         options.KnownProxies.Add(IPAddress.Parse(knownProxy.Value!));
     }
 
-    options.KnownNetworks.Clear();
+    options.KnownIPNetworks.Clear();
     foreach (var knownNetwork in forwardedHeadersOptions.GetSection("KnownNetworks").GetChildren())
     {
-        options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+        options.KnownIPNetworks.Add(new System.Net.IPNetwork(
             IPAddress.Parse(knownNetwork.GetValue<string>("Prefix")!),
             knownNetwork.GetValue<int>("PrefixLength")!));
 
-        Console.WriteLine(String.Join(',', options.KnownNetworks.Select(t => t.Prefix + "/" + t.PrefixLength)));
+        Console.WriteLine(String.Join(',', options.KnownIPNetworks.Select(t => t.BaseAddress + "/" + t.PrefixLength)));
     }
 });
 
@@ -87,7 +128,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
 builder.Services.AddScoped<IAuthorizationHandler, ProjectStatusReportAuthorizationHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, PointsAuthorizationHandler>();
-
+builder.Services.AddScoped<IAuthorizationHandler, ProjectsAuthorizationHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, TimeEntryAuthorizationHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, PlanAuthorizationHandler>();
 
@@ -137,6 +178,11 @@ builder.Services.AddAuthentication(options =>
 {
     options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
     options.SignOutScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+
+    if (builder.Environment.IsDevelopment())
+    {
+        options.RequireHttpsMetadata = false;
+    }
 
     options.Authority = builder.Configuration["AUTH_ISSUER"] ?? throw new ArgumentNullException("Undefined AUTH_ISSUER");
     options.SaveTokens = true;
@@ -228,6 +274,31 @@ app.UseCors(policy => policy
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.Use(async (context, next) =>
+{
+    var staffId = context.User.GetStaffId();
+    var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    var userRoles = String.Join(", ", context.User.FindAll(ClaimTypes.Role).Select(t => t.Value));
+
+    var activity = Activity.Current;
+    activity?.AddTag("user.id", userId);
+    activity?.AddTag("user.roles", userRoles);
+    activity?.AddTag("hq.staff_id", staffId);
+
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    var logScope = new Dictionary<string, object?>()
+    {
+        { "user.id", userId },
+        { "user.roles", userRoles },
+        { "hq.staff_id", staffId },
+    }.ToList();
+
+    using (logger.BeginScope(logScope))
+    {
+        await next();
+    }
+});
+
 app.MapHangfireDashboard("/hangfire", new()
 {
     Authorization = [],
@@ -246,11 +317,216 @@ if (serverOptions.AutoMigrate)
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<HQDbContext>();
     await dbContext.Database.MigrateAsync();
+
+    if (builder.Environment.IsDevelopment())
+    {
+        var sancsoft = await dbContext.Clients.SingleOrDefaultAsync(t => t.Name == "SANCSOFT");
+        if (sancsoft == null)
+        {
+            sancsoft = new()
+            {
+                Name = "SANCSOFT",
+                OfficialName = "Sanctuary Software Studio, Inc."
+            };
+
+            dbContext.Clients.Add(sancsoft);
+        }
+
+        var holidayProject = await dbContext.Projects.SingleOrDefaultAsync(t => t.Name == "HOLIDAY");
+        if (holidayProject == null)
+        {
+            holidayProject = new()
+            {
+                Name = "HOLIDAY",
+                ClientId = sancsoft.Id,
+                TimeEntryMaxHours = 8,
+                Status = ProjectStatus.Ongoing,
+                BookingHours = 0,
+                BookingPeriod = Period.Month,
+            };
+
+            dbContext.Projects.Add(holidayProject);
+        }
+
+        var holidayChargeCode = await dbContext.ChargeCodes.SingleOrDefaultAsync(t => t.ProjectId == holidayProject.Id);
+        if (holidayChargeCode == null)
+        {
+            holidayChargeCode = new()
+            {
+                ProjectId = holidayProject.Id,
+                Code = "S1022",
+                Active = true,
+                Activity = ChargeCodeActivity.General,
+                Billable = false,
+            };
+
+            dbContext.ChargeCodes.Add(holidayChargeCode);
+        }
+
+        var vacationProject = await dbContext.Projects.SingleOrDefaultAsync(t => t.Name == "VACATION");
+        if (vacationProject == null)
+        {
+            vacationProject = new()
+            {
+                Name = "VACATION",
+                ClientId = sancsoft.Id,
+                TimeEntryMaxHours = 8,
+                Status = ProjectStatus.Ongoing,
+                BookingHours = 0,
+                BookingPeriod = Period.Month,
+            };
+
+            dbContext.Projects.Add(vacationProject);
+        }
+
+        var vacationChargeCode = await dbContext.ChargeCodes.SingleOrDefaultAsync(t => t.ProjectId == vacationProject.Id);
+        if (vacationChargeCode == null)
+        {
+            vacationChargeCode = new()
+            {
+                ProjectId = vacationProject.Id,
+                Code = "S1001",
+                Active = true,
+                Activity = ChargeCodeActivity.General,
+                Billable = false,
+            };
+
+            dbContext.ChargeCodes.Add(vacationChargeCode);
+        }
+
+        var sickProject = await dbContext.Projects.SingleOrDefaultAsync(t => t.Name == "SICK");
+        if (sickProject == null)
+        {
+            sickProject = new()
+            {
+                Name = "SICK",
+                ClientId = sancsoft.Id,
+                TimeEntryMaxHours = 8,
+                Status = ProjectStatus.Ongoing,
+                BookingHours = 0,
+                BookingPeriod = Period.Month,
+            };
+
+            dbContext.Projects.Add(sickProject);
+        }
+
+        var sickChargeCode = await dbContext.ChargeCodes.SingleOrDefaultAsync(t => t.ProjectId == sickProject.Id);
+        if (sickChargeCode == null)
+        {
+            sickChargeCode = new()
+            {
+                ProjectId = sickProject.Id,
+                Code = "S1002",
+                Active = true,
+                Activity = ChargeCodeActivity.General,
+                Billable = false,
+            };
+
+            dbContext.ChargeCodes.Add(sickChargeCode);
+        }
+
+        var adminStaff = await dbContext.Staff.SingleOrDefaultAsync(t => t.Email == "admin@localhost");
+        if (adminStaff == null)
+        {
+            adminStaff = new()
+            {
+                Id = Guid.Parse("32bded97-1d95-48c3-966a-fea9756df4aa"),
+                Email = "admin@localhost",
+                FirstName = "Admin",
+                LastName = "User",
+                Name = "admin",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                WorkHours = 40,
+                VacationHours = 80,
+                Jurisdiciton = Jurisdiciton.USA,
+            };
+
+            dbContext.Staff.Add(adminStaff);
+        }
+
+        var executiveStaff = await dbContext.Staff.SingleOrDefaultAsync(t => t.Email == "executive@localhost");
+        if (executiveStaff == null)
+        {
+            executiveStaff = new()
+            {
+                Id = Guid.Parse("7a3f8c2e-5b1d-4f9a-8e6c-2d4b7a9f1c3e"),
+                Email = "executive@localhost",
+                FirstName = "Executive",
+                LastName = "User",
+                Name = "executive",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                WorkHours = 40,
+                VacationHours = 80,
+                Jurisdiciton = Jurisdiciton.USA,
+            };
+
+            dbContext.Staff.Add(executiveStaff);
+        }
+
+        var managerStaff = await dbContext.Staff.SingleOrDefaultAsync(t => t.Email == "manager@localhost");
+        if (managerStaff == null)
+        {
+            managerStaff = new()
+            {
+                Id = Guid.Parse("9c5e1f7a-3d8b-4a2e-b6f9-1c7d4e8a3b5f"),
+                Email = "manager@localhost",
+                FirstName = "Manager",
+                LastName = "User",
+                Name = "manager",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                WorkHours = 40,
+                VacationHours = 80,
+                Jurisdiciton = Jurisdiciton.USA,
+            };
+
+            dbContext.Staff.Add(managerStaff);
+        }
+
+        var partnerStaff = await dbContext.Staff.SingleOrDefaultAsync(t => t.Email == "partner@localhost");
+        if (partnerStaff == null)
+        {
+            partnerStaff = new()
+            {
+                Id = Guid.Parse("4e7b2d9f-6a1c-4e8b-9d3f-5c7a2e4b8d1f"),
+                Email = "partner@localhost",
+                FirstName = "Partner",
+                LastName = "User",
+                Name = "partner",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                WorkHours = 40,
+                VacationHours = 80,
+                Jurisdiciton = Jurisdiciton.USA,
+            };
+
+            dbContext.Staff.Add(partnerStaff);
+        }
+
+        var staffStaff = await dbContext.Staff.SingleOrDefaultAsync(t => t.Email == "staff@localhost");
+        if (staffStaff == null)
+        {
+            staffStaff = new()
+            {
+                Id = Guid.Parse("2b8d4f6a-9e3c-4a7b-8f1d-3e5c9a7b2d4f"),
+                Email = "staff@localhost",
+                FirstName = "Staff",
+                LastName = "User",
+                Name = "staff",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                WorkHours = 40,
+                VacationHours = 80,
+                Jurisdiciton = Jurisdiciton.USA,
+            };
+
+            dbContext.Staff.Add(staffStaff);
+        }
+
+        await dbContext.SaveChangesAsync();
+    }
 }
 
 // Setup recurring hangfire jobs
 var recurringJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
-var timezone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+var timezone = TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York");
 var recurringJobOptions = new RecurringJobOptions()
 {
     TimeZone = timezone,
@@ -262,6 +538,13 @@ recurringJobManager.AddOrUpdate<TimeEntryServiceV1>(
     nameof(TimeEntryServiceV1.BackgroundSendRejectedTimeSubmissionReminderEmail),
     (t) => t.BackgroundSendRejectedTimeSubmissionReminderEmail(Period.LastWeek, CancellationToken.None),
     Cron.Daily(8),
+    recurringJobOptions);
+
+
+recurringJobManager.AddOrUpdate<PlanServiceV1>(
+    nameof(PlanServiceV1.BackgroundSendPlanSubmissionReminderEmail),
+    (t) => t.BackgroundSendPlanSubmissionReminderEmail(Period.Today, CancellationToken.None),
+    Cron.Daily(10),
     recurringJobOptions);
 
 // Monday morning
@@ -296,6 +579,18 @@ recurringJobManager.AddOrUpdate<ProjectStatusReportServiceV1>(
     Cron.Weekly(DayOfWeek.Monday, 12),
     recurringJobOptions);
 
+recurringJobManager.AddOrUpdate<PointServiceV1>(
+    nameof(PointServiceV1.BackgroundSendPointSubmissionReminderEmail),
+    (t) => t.BackgroundSendPointSubmissionReminderEmail(Period.Week, CancellationToken.None),
+    Cron.Weekly(DayOfWeek.Monday, 12),
+    recurringJobOptions);
+
+recurringJobManager.AddOrUpdate<EmailMessageService>(
+    nameof(EmailMessageService.SendEmployeeHoursEmail),
+    (t) => t.SendEmployeeHoursEmail(CancellationToken.None),
+    "15 12 * * 1",
+    recurringJobOptions);
+
 // Friday morning
 recurringJobManager.AddOrUpdate<HolidayServiceV1>(
     nameof(HolidayServiceV1.BackgroundAutoGenerateHolidayTimeEntryV1),
@@ -306,6 +601,12 @@ recurringJobManager.AddOrUpdate<HolidayServiceV1>(
 recurringJobManager.AddOrUpdate<PointServiceV1>(
     nameof(PointServiceV1.BackgroundAutoGenerateHolidayPlanningPointsV1),
     (t) => t.BackgroundAutoGenerateHolidayPlanningPointsV1(CancellationToken.None),
+    Cron.Weekly(DayOfWeek.Friday, 8),
+    recurringJobOptions);
+
+recurringJobManager.AddOrUpdate<PointServiceV1>(
+    nameof(PointServiceV1.BackgroundAutoGenerateVacationPlanningPointsV1),
+    (t) => t.BackgroundAutoGenerateVacationPlanningPointsV1(CancellationToken.None),
     Cron.Weekly(DayOfWeek.Friday, 8),
     recurringJobOptions);
 

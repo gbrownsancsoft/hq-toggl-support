@@ -68,7 +68,7 @@
           [tabindex]="-1"
           (click)="chooseDate()"
           title="Change date"
-          [disabled]="!(form.value.id && form.valid)"
+          [disabled]="!(form.value.id && form.valid) && !enableChooseDate"
           class="flex items-center justify-center h-full pointer-events-auto cursor-pointer z-10 right-0 relative col-start-1 row-start-1 self-center justify-self-end w-[36px] after:block after:w-[1px] after:absolute after:left-[1px] after:top-[7px] after:bottom-[7px] after:bg-gray-100"
         >
           <i class="bi bi-calendar text-[14px] bg-blue-900"></i>
@@ -108,7 +108,7 @@
     </td>
 
     <td class="border-b border-black py-2 pl-2">
-      @if (activities$ | async; as activities) {
+      @if (filteredActivities$ | async; as activities) {
         @if (activities.length > 0) {
           <div class="grid relative w-full max-w-[220px]">
             <select
@@ -124,7 +124,10 @@
               (keydown.enter)="onEnter($event.target)"
             >
               <option [ngValue]="null" class="text-gray-50">Activity</option>
-              @for (activity of activities$ | async; track activity.id) {
+              @for (
+                activity of filteredActivities$ | async;
+                track activity.id
+              ) {
                 <option [ngValue]="activity.id">{{ activity.name }}</option>
               }
             </select>
@@ -135,15 +138,41 @@
             </span>
           </div>
         } @else {
-          <input
-            class="w-[100%] block text-[14px] px-2 py-1 border border-black appearance-none focus:outline-none focus:border-white placeholder:text-gray-100 bg-blue-900 rounded h-[30px]"
-            type="text"
-            aria-label="Task"
-            formControlName="task"
-            (blur)="save()"
-            (keydown.enter)="onEnter($event.target)"
-          />
+          <div class="grid relative w-full max-w-[220px]">
+            <select
+              [disabled]="true"
+              class="w-full pl-2 pr-[43px] appearance-none focus:outline-none border-gray-450 text-gray-450 font-medium row-start-1 col-start-1 border bg-blue-900 rounded h-[30px]"
+            ></select>
+            <span
+              class="flex items-center justify-center h-full pointer-events-none z-10 right-0 relative col-start-1 row-start-1 self-center justify-self-end w-[36px] after:block after: after:absolute after:left-[1px] after:top-[7px] after:bottom-[7px] after:bg-gray-100"
+            >
+              <i class="bi bi-arrow-down-short text-[24px] text-gray-450"></i>
+            </span>
+          </div>
         }
+      }
+    </td>
+    <td class="border-b border-black py-2 pl-2">
+      @if (requireTask$ | async; as requireTask) {
+        <input
+          [ngClass]="{
+            'border-red-700 focus:border-red-700':
+              form.controls.task.errors && form.touched,
+            'border-black': !form.controls.task.errors || !form.touched,
+          }"
+          class="w-[100%] block text-[14px] px-2 py-1 border border-black appearance-none focus:outline-none focus:border-white placeholder:text-gray-100 bg-blue-900 rounded h-[30px]"
+          type="text"
+          aria-label="Task"
+          formControlName="task"
+          (blur)="save()"
+          (keydown.enter)="onEnter($event.target)"
+        />
+      } @else {
+        <input
+          class="w-[100%] block text-[14px] px-2 py-1 border appearance-none focus:outline-none border-gray-450 text-gray-450 focus:border-white placeholder:text-gray-100 bg-blue-900 rounded h-[30px]"
+          type="text"
+          [disabled]="true"
+        />
       }
     </td>
     <td class="border-b border-black py-2 pl-2">
@@ -193,7 +222,7 @@
               (click)="showRejectionNotes()"
             >
               <i
-                [title]="time?.rejectionNotes"
+                [title]="$safeNavigationMigration(time?.rejectionNotes)"
                 class="bi bi-exclamation-diamond-fill text-yellow-550"
               ></i>
             </button>
@@ -208,29 +237,16 @@
     <td class="border-b border-black py-2 px-4 text-gray-450">
       {{ time?.date }}
     </td>
-    <td class="border-b border-black py-2 pl-2 text-center text-gray-450">
-      <div class="px-3">
-        <hq-select-input
-          [readonly]="true"
-          [formControlName]="'chargeCodeId'"
-          [autocomplete]="true"
-          variant="pill"
-          [inline]="true"
+    <td class="border-b border-black py-2 text-center text-gray-450">
+      <div class="px-4">
+        <button
+          type="button"
+          disabled
+          class="flex items-center border justify-between bg-blue-900 select-none overflow-hidden border-transparent text-center font-semibold rounded-full px-3 py-1"
+          [style.background-color]="chargeCodeToColor(time?.chargeCode ?? '')"
         >
-          <ng-template [hqSelectInputOption]="null">Chrge</ng-template>
-          @for (code of chargeCodes; track code.id) {
-            <ng-template
-              [hqSelectInputOption]="code.id"
-              [hqSelectInputOptionSelectedDisplay]="code.code"
-              [hqSelectInputOptionSearch]="
-                code.code + ': ' + code.clientName + ': ' + code.projectName
-              "
-              >{{
-                code.code + ": " + code.clientName + ": " + code.projectName
-              }}</ng-template
-            >
-          }
-        </hq-select-input>
+          {{ time?.chargeCode }}
+        </button>
       </div>
     </td>
     <td class="border-b border-black py-2 pl-2 text-gray-450">
@@ -240,7 +256,10 @@
       {{ projectName$ | async }}
     </td>
     <td class="border-b border-black py-2 pl-2 text-gray-450">
-      {{ time?.activityName || time?.task }}
+      {{ time?.activityName }}
+    </td>
+    <td class="border-b border-black py-2 pl-2 text-gray-450">
+      {{ time?.task }}
     </td>
     <td class="border-b border-black py-2 pl-3 text-gray-450">
       @if (time?.notes; as notes) {

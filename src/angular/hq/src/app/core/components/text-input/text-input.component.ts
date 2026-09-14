@@ -7,6 +7,7 @@ import {
   QueryList,
   Self,
   ViewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { FormsModule, NgControl } from '@angular/forms';
 import { ValidationErrorDirective } from '../../directives/validation-error.directive';
@@ -16,8 +17,8 @@ import { generateUniqueInputId } from '../../functions/generate-unique-input-id'
 
 @Component({
   selector: 'hq-text-input',
-  standalone: true,
   imports: [FormsModule, CommonModule, FormLabelComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './text-input.component.html',
 })
 export class TextInputComponent {
@@ -46,7 +47,12 @@ export class TextInputComponent {
   max: number | null = null;
 
   @Input()
-  public disabled = false;
+  minLength: number | null = null;
+  @Input()
+  maxLength: number | null = null;
+
+  @Input()
+  public disabled: boolean = false;
 
   @ContentChildren(ValidationErrorDirective)
   validationErrors!: QueryList<ValidationErrorDirective>;

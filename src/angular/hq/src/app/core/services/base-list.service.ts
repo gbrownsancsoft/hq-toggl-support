@@ -1,12 +1,16 @@
+import { APIError } from './../../errors/apierror';
 import { Injectable } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import {
   BehaviorSubject,
+  catchError,
   combineLatest,
   defer,
+  finalize,
   map,
   merge,
   Observable,
+  of,
   shareReplay,
   Subject,
   switchMap,
@@ -41,12 +45,16 @@ export abstract class BaseListService<
 
   // Filters
   public search = new FormControl<string | null>(null);
+  public showUpcoming = new FormControl<boolean>(true, {
+    nonNullable: true,
+  });
   public itemsPerPage = new FormControl(15, { nonNullable: true });
   public page = new FormControl<number>(1, { nonNullable: true });
 
   public takeToDisplay$: Observable<number>;
   public totalRecords$: Observable<number>;
   public response$: Observable<TResponse>;
+
   public records$: Observable<TRecord[]>;
 
   public itemsPerPage$: Observable<number>;
@@ -55,6 +63,7 @@ export abstract class BaseListService<
   public skipDisplay$: Observable<number>;
 
   public search$: Observable<string | null>;
+  public showUpcoming$: Observable<boolean>;
 
   protected abstract getResponse(): Observable<TResponse>;
 
@@ -81,13 +90,28 @@ export abstract class BaseListService<
       shareReplay({ bufferSize: 1, refCount: false }),
     );
 
+    this.showUpcoming$ = formControlChanges(this.showUpcoming).pipe(
+      shareReplay({ bufferSize: 1, refCount: false }),
+    );
+
     const response$ = defer(() => this.getResponse());
 
     const refreshResponse$ = this.refreshSubject.pipe(
       switchMap(() => response$),
     );
-
     this.response$ = merge(response$, refreshResponse$).pipe(
+      catchError((error: unknown) => {
+        return of({
+          error:
+            error instanceof APIError
+              ? error.message
+              : 'An unknown error occurred',
+        } as unknown as TResponse);
+      }),
+      finalize(() => {
+        console.log('Finalize');
+        this.loadingSubject.next(false);
+      }),
       shareReplay({ bufferSize: 1, refCount: false }),
     );
 

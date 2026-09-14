@@ -7,6 +7,275 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-08-11
+
+### Changed
+
+- **Angular 22 upgrade** — Upgraded Angular framework and all related packages from v17 to v22
+  - Migrated to new Angular control flow syntax (`@if`, `@for`) replacing `*ngIf`, `*ngFor`
+  - Switched build system from `@angular-devkit/build-angular` to `@angular/build`
+  - Updated TypeScript from v5 to v6 with `bundler` module resolution
+  - Adopted `provideAppInitializer` and `provideZoneChangeDetection` for app configuration
+  - Set `ChangeDetectionStrategy.Eager` on components and removed explicit `standalone: true`
+- **ESLint flat config migration** — Replaced `.eslintrc.json` with `eslint.config.js` flat config format, upgraded ESLint from v8 to v10, and migrated to `rxjs-x`/`rxjs-angular-x` plugins
+- **Node.js 24** — CI/CD workflows updated to use Node.js 24
+
+### Fixed
+
+- Project number generation — Handle nullable max when no other projects exist
+- Quote number generation — Handle nullable max when no other quotes exist
+
+## [0.6.2] - 2026-08-06
+
+### Fixed
+
+- Build — Removed BaseController inheritance from ServicesAgreementServiceV1
+
+## [0.6.1] - 2026-08-06
+
+### Added
+
+- Time entry status management — Set and edit status on time entries
+- Admin unsubmit button on staff timesheet to unsubmit all submitted time records
+- Time entry cut-off date assignment in staff admin area
+- Windows timezone support for Eastern Time
+- DEVELOP.md with development setup documentation
+- Seed method to generate test projects, charge codes, and test users in development
+
+### Changed
+
+- Package updates
+- Upgraded to .NET 10
+- Docker Compose improvements and cleanup
+
+### Fixed
+
+- Invoice list page filter styling
+- Activity and task form field validation when switching charge codes
+- Narrow gap between billable and required tasks fields on project pages
+
+## [0.6.0] - 2025-09-04
+
+### Added
+
+- Invoicing functionality — Create, view, and manage invoices with time entries
+  - Invoice creation with client selection and invoice number
+  - Invoice details page with time entry management (add, edit, delete time)
+  - Invoice list with search and filtering
+  - Add time entries to existing invoices
+- Upcoming filter to Holiday list
+- Project manager filter to points page
+- Ability to require activities and/or tasks on projects
+
+### Changed
+
+- Package updates
+- Upgraded Duende.AccessTokenManagement
+- Staff hour email priority changed from high to normal
+- Reject time entry email template updated to show separate Activity and Task fields based on project configuration
+
+### Fixed
+
+- PSR unsubmitted styling
+- Staff selection in PSR list
+- Autocomplete closing on clicking items
+- Employee hours email template styling
+- Markdown styling for list elements
+
+## [0.5.9] - 2025-06-23
+
+### Changed
+
+- Upgraded Duende.AccessTokenManagement
+
+## [0.5.8] - 2025-06-17
+
+### Changed
+
+- Package updates
+
+## [0.5.7] - 2025-06-17
+
+### Fixed
+
+- Employee hours email template styling
+
+## [0.5.6] - 2025-02-13
+
+### Fixed
+
+- Time entry validation
+
+## [0.5.5] - 2025-02-12
+
+### Changed
+
+- Staff list feedback
+
+### Fixed
+
+-  PSR unsubmitted styling
+
+## [0.5.4] - 2025-02-10
+
+### Removed
+
+- Default ShowCurrentOnly filter on GetProject request
+
+## [0.5.3] - 2025-02-10
+
+### Added
+
+- Secondary sort to timesheet day view so new time entries appear at the top by default matching v0.4 functionality
+
+## [0.5.2] - 2025-02-10
+
+### Removed
+
+- Default ShowCurrentOnly filter on GetStaff request
+
+### Fixed
+
+- Vacation planning point logic to account for 4 hour increments
+- Month view not looking at time entry cutoff when looking at time in the past (hide new time entry row if the time entry cutoff is after the end of the month)
+- Heading on staff admin edit page
+- Rejected time filtering on timesheet
+- Resubmitting rejected times
+- Billable filter not filtering in time export
+
+### Changed
+
+- Weekly staff hour email formatting
+- Renamed At Customer status to At The Client
+- Default S charge codes max to 24 hours
+- Only generate holiday time entries when creating a holiday if the holiday is within the current week period
+
+### Added
+
+- "Today" button to timesheet that jumps you back to today
+- Sorting support to day view
+
+## [0.5.1] - 2025-01-13
+
+### Fixed
+
+- Linter errors
+
+## [0.5.0] - 2025-01-13
+
+### Added
+
+- Max hour time limit to projects
+  - Configurable on project edit page
+- Logging and metrics support with OpenTelemetry
+- Points reminder email
+  - Sends Monday at 12PM EST
+- Plan reminder email
+  - Sends daily at 10AM EST
+- Link to project on PSR list and PSR detail page
+- Automatically add vacation planning points based on time entries
+  - Generates Friday at 8AM EST for the following week
+- Filtering staff by jurisdiction on staff list
+- Staff name to points modal on points page
+- Show current only filter to project list
+- Send staff notification if a PM or admin modifies their points
+- Send weekly staff hour summary email Monday at 12:15PM EST
+- Database indexes to improve performance
+- Updated holiday time entry to be re-entrant and called when a new holiday is added after they are generated
+- Timesheet month view
+
+### Fixed
+
+- User list not filtering
+- File download bug (Quotes, Exports, etc.)
+- Fixed PSR list autocomplete z-index bug
+- Client name sorting on project list
+- PSR header not updating after changing/ editing time
+- PM Can't adjust charge code or activity/task on resubmitted time on PSR time table 
+- Hide edit icon on points page if user does not have permission
+- Updated logic for calculating PSRs to generate for closed projects with time for the previous week
+
+### Changed
+
+- Sort project managers by name in project crud dropdown
+- Added staff management under admin dropdown
+- Allow PMs to edit project rosters
+- Charge code list refactor
+- Holiday list refactor
+- Staff list refactor
+- Time list refactor
+- PSR list refactor
+- Allow admin to change client on project
+- Gray PSR row on PSR list if current period
+- Update status options with list from MJT
+  - In The Office
+  - At Customer
+  - WFH
+  - WFH AM
+  - WFH PM
+  - Vacation
+  - Sick
+  - Holiday
+- Time admin updates
+  - Add billable filter to list
+  - Approved by in list can be removed
+  - Change filters to autocomplete, update format of projects to use expanded charge code (QXXX: Client: Project)
+  - Add the ability to create time entries
+  - Add the ability to change date on edit page
+  - Add the ability to delete a time entry for admins only
+- Optimized dashboard response time by removing unused fields
+
+## [0.4.16] - 2024-11-04
+
+### Fixed
+
+- Staff create routing
+
+## [0.4.15] - 2024-08-19
+
+### Added
+
+- Ability to edit planning points from points UI
+- Additional statuses
+  - Working from home morning
+  - Working from home afternoon
+
+### Fixed
+
+- Email logo issue
+- Client name on project detail
+
+### Changed
+
+- Show toast notification after submitting PSR instead of second confirm
+- Show all chage codes on PSR time entries
+- Planning points display
+  - Charge code prefix: Client Name: Project Name
+
+## [0.4.14] - 2024-08-19
+
+### Fixed
+
+- PSR auto submit not working
+
+## [0.4.13] - 2024-08-12
+
+### Fixed
+
+- Planning points usability updates
+
+## [0.4.12] - 2024-08-11
+
+### Fixed
+
+- Link to staff details on planning points UI
+
+## [0.4.11] - 2024-08-11
+
+### Fixed
+
+- Planning point sorting due to regression from auto-sorting holiday/vacation/sick time at the end
+
 ## [0.4.10] - 2024-08-11
 
 ### Changed
@@ -588,7 +857,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release.
 
-[unreleased]: https://github.com/sancsoft/hq/compare/v0.4.10...HEAD
+[unreleased]: https://github.com/sancsoft/hq/compare/v0.6.3...HEAD
+[0.6.2]: https://github.com/sancsoft/hq/compare/v0.6.2...v0.6.3
+[0.6.2]: https://github.com/sancsoft/hq/compare/v0.6.1...v0.6.2
+[0.6.1]: https://github.com/sancsoft/hq/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/sancsoft/hq/compare/v0.5.9...v0.6.0
+[0.5.9]: https://github.com/sancsoft/hq/compare/v0.5.8...v0.5.9
+[0.5.8]: https://github.com/sancsoft/hq/compare/v0.5.7...v0.5.8
+[0.5.7]: https://github.com/sancsoft/hq/compare/v0.5.6...v0.5.7
+[0.5.6]: https://github.com/sancsoft/hq/compare/v0.5.5...v0.5.6
+[0.5.5]: https://github.com/sancsoft/hq/compare/v0.5.4...v0.5.5
+[0.5.4]: https://github.com/sancsoft/hq/compare/v0.5.3...v0.5.4
+[0.5.3]: https://github.com/sancsoft/hq/compare/v0.5.2...v0.5.3
+[0.5.2]: https://github.com/sancsoft/hq/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/sancsoft/hq/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/sancsoft/hq/releases/tag/v0.5.0
+[0.4.16]: https://github.com/sancsoft/hq/compare/v0.4.10...v0.4.16
+[0.4.15]: https://github.com/sancsoft/hq/compare/v0.4.10...v0.4.15
+[0.4.14]: https://github.com/sancsoft/hq/compare/v0.4.10...v0.4.14
+[0.4.13]: https://github.com/sancsoft/hq/compare/v0.4.10...v0.4.13
+[0.4.12]: https://github.com/sancsoft/hq/compare/v0.4.10...v0.4.12
+[0.4.11]: https://github.com/sancsoft/hq/compare/v0.4.10...v0.4.11
 [0.4.10]: https://github.com/sancsoft/hq/compare/v0.4.9...v0.4.10
 [0.4.9]: https://github.com/sancsoft/hq/compare/v0.4.8...v0.4.9
 [0.4.8]: https://github.com/sancsoft/hq/compare/v0.4.7...v0.4.8

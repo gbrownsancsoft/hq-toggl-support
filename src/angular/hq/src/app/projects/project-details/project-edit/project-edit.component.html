@@ -10,8 +10,8 @@
         <div class="grid 2xl:grid-cols-[1fr_594px] flex-1">
           <div class="p-5 pr-0">
             <div class="grid gap-[20px]">
-              @if (this.apiErrors) {
-                @for (error of this.apiErrors; track $index) {
+              @if (apiErrors) {
+                @for (error of apiErrors; track $index) {
                   <div class="text-red-700 text-xs leading-normal inline-block">
                     {{ error }}
                   </div>
@@ -278,6 +278,7 @@
                     </ng-template>
                   </hq-text-input>
                 </div>
+
                 <!-- column -->
                 <div>
                   <hq-text-input
@@ -292,6 +293,19 @@
                       Max Hours is required.
                     </ng-template>
                   </hq-text-input>
+                </div>
+
+                <!-- column -->
+                <div>
+                  <hq-select-input
+                    [autocomplete]="true"
+                    formControlName="requireTask"
+                    label="Require Task"
+                    variant="secondary"
+                  >
+                    <ng-template [hqSelectInputOption]="false">No</ng-template>
+                    <ng-template [hqSelectInputOption]="true">Yes</ng-template>
+                  </hq-select-input>
                 </div>
               </div>
             </div>

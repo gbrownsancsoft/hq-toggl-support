@@ -17,7 +17,7 @@ namespace HQ.Server.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.4")
+                .HasAnnotation("ProductVersion", "9.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -497,6 +497,10 @@ namespace HQ.Server.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("quote_id");
 
+                    b.Property<bool>("RequireTask")
+                        .HasColumnType("boolean")
+                        .HasColumnName("require_task");
+
                     b.Property<DateOnly?>("StartDate")
                         .HasColumnType("date")
                         .HasColumnName("start_date");
@@ -524,9 +528,6 @@ namespace HQ.Server.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_projects");
 
-                    b.HasIndex("ClientId")
-                        .HasDatabaseName("ix_projects_client_id");
-
                     b.HasIndex("ProjectManagerId")
                         .HasDatabaseName("ix_projects_project_manager_id");
 
@@ -536,6 +537,9 @@ namespace HQ.Server.Data.Migrations
 
                     b.HasIndex("QuoteId")
                         .HasDatabaseName("ix_projects_quote_id");
+
+                    b.HasIndex("ClientId", "ProjectManagerId")
+                        .HasDatabaseName("ix_projects_client_id_project_manager_id");
 
                     b.ToTable("projects", (string)null);
                 });
@@ -684,11 +688,12 @@ namespace HQ.Server.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_project_status_reports");
 
-                    b.HasIndex("ProjectId")
-                        .HasDatabaseName("ix_project_status_reports_project_id");
-
                     b.HasIndex("ProjectManagerId")
                         .HasDatabaseName("ix_project_status_reports_project_manager_id");
+
+                    b.HasIndex("ProjectId", "StartDate", "EndDate")
+                        .IsDescending(false, true, true)
+                        .HasDatabaseName("ix_project_status_reports_project_id_start_date_end_date");
 
                     b.ToTable("project_status_reports", (string)null);
                 });
@@ -986,6 +991,10 @@ namespace HQ.Server.Data.Migrations
                         .HasColumnType("numeric")
                         .HasColumnName("hours_approved");
 
+                    b.Property<decimal?>("HoursInvoiced")
+                        .HasColumnType("numeric")
+                        .HasColumnName("hours_invoiced");
+
                     b.Property<Guid?>("InvoiceId")
                         .HasColumnType("uuid")
                         .HasColumnName("invoice_id");
@@ -1031,8 +1040,9 @@ namespace HQ.Server.Data.Migrations
                     b.HasIndex("ActivityId")
                         .HasDatabaseName("ix_times_activity_id");
 
-                    b.HasIndex("ChargeCodeId")
-                        .HasDatabaseName("ix_times_charge_code_id");
+                    b.HasIndex("Date")
+                        .IsDescending()
+                        .HasDatabaseName("ix_times_date");
 
                     b.HasIndex("HolidayId")
                         .HasDatabaseName("ix_times_holiday_id");
@@ -1045,6 +1055,16 @@ namespace HQ.Server.Data.Migrations
 
                     b.HasIndex("StaffId")
                         .HasDatabaseName("ix_times_staff_id");
+
+                    b.HasIndex("ChargeCodeId", "Date")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_times_charge_code_id_date");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("ChargeCodeId", "Date"), new[] { "Hours", "HoursApproved" });
+
+                    b.HasIndex("ChargeCodeId", "Status", "Date")
+                        .IsDescending(false, false, true)
+                        .HasDatabaseName("ix_times_charge_code_id_status_date");
 
                     b.ToTable("times", (string)null);
                 });

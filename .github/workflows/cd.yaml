@@ -14,7 +14,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 10.0.x
     - name: Write release version
       run: |
         VERSION=${GITHUB_REF_NAME#v}
@@ -43,10 +43,10 @@ jobs:
         working-directory: src/angular/hq/
     steps:
     - uses: actions/checkout@v4
-    - name: Setup Node.js 20.x
+    - name: Setup Node.js 24.x
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: 24.x
         cache: 'npm'
         cache-dependency-path: src/angular/hq/package-lock.json
     - name: Restore dependencies

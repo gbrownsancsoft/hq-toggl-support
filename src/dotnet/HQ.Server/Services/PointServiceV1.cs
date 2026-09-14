@@ -6,8 +6,9 @@ using CsvHelper.Configuration;
 
 using FluentResults;
 
-using HQ.Abstractions;
+using Hangfire;
 
+using HQ.Abstractions;
 using HQ.Abstractions.Enumerations;
 using HQ.Abstractions.Points;
 using HQ.Server.Data;
@@ -20,10 +21,12 @@ namespace HQ.Server.Services;
 public class PointServiceV1
 {
     private readonly HQDbContext _context;
+    private readonly IBackgroundJobClient _backgroundJobClient;
 
-    public PointServiceV1(HQDbContext context)
+    public PointServiceV1(HQDbContext context, IBackgroundJobClient backgroundJobClient)
     {
         _context = context;
+        _backgroundJobClient = backgroundJobClient;
     }
     public async Task<Result<GetPointsV1.Response>> GetPointsV1(GetPointsV1.Request request, CancellationToken ct = default)
     {
@@ -245,8 +248,10 @@ public class PointServiceV1
                 {
                     var point = staffPoints[i + 1];
                     planningPoint.ChargeCodeId = point.ChargeCodeId;
+                    planningPoint.Id = point.Id;
                     planningPoint.ChargeCode = point.ChargeCode.Code;
                     planningPoint.ProjectId = point.ChargeCode.ProjectId;
+                    planningPoint.ProjectManagerId = point.ChargeCode.Project?.ProjectManagerId;
                     planningPoint.ProjectName = point.ChargeCode.Project?.Name;
                     planningPoint.ClientId = point.ChargeCode.Project?.ClientId;
                     planningPoint.ClientName = point.ChargeCode.Project?.Client?.Name;
@@ -274,6 +279,18 @@ public class PointServiceV1
                     staff.Points.Any(point => point.ProjectName?.ToLower()?.Contains(request.Search.ToLower()) ?? false)
                 ).ToList();
         }
+        if (request.IsCompleted.HasValue)
+        {
+            response.Staff = response.Staff.Where(t => t.Completed == request.IsCompleted.Value).ToList();
+        }
+        if (request.ProjectManagerId.HasValue)
+        {
+            var projectIds = await _context.Projects
+                .Where(pr => pr.ProjectManagerId == request.ProjectManagerId.Value)
+                .Select(pr => pr.Id)
+                .ToListAsync(ct);
+            response.Staff = response.Staff.Where(t => t.Points.Any(p => p.ProjectId.HasValue && projectIds.Contains(p.ProjectId.Value))).ToList();
+        }
 
         response.TotalPoints = response.Staff.Sum(t => t.Points.Where(x => x.ChargeCodeId.HasValue).Count());
         response.EmptyPoints = response.Staff.Count * 10 - response.TotalPoints;
@@ -287,6 +304,16 @@ public class PointServiceV1
         var nextWeekStartDate = today.GetPeriodStartDate(Period.Week).AddPeriod(Period.Week, 1);
 
         var generateHolidayPlanningPointsResponse = await GenerateHolidayPlanningPointsV1(new()
+        {
+            ForDate = nextWeekStartDate
+        }, ct);
+    }
+    public async Task BackgroundAutoGenerateVacationPlanningPointsV1(CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var nextWeekStartDate = today.GetPeriodStartDate(Period.Week).AddPeriod(Period.Week, 1);
+
+        var generateVacationPlanningPointsResponse = await GenerateVacationPlanningPointsV1(new()
         {
             ForDate = nextWeekStartDate
         }, ct);
@@ -351,5 +378,80 @@ public class PointServiceV1
         {
         };
     }
+    public async Task<Result<GenerateVacationPointsV1.Response>> GenerateVacationPlanningPointsV1(GenerateVacationPointsV1.Request request, CancellationToken ct = default)
+    {
+        var today = request.ForDate;
+        var startDate = today.GetPeriodStartDate(Period.Week);
+        var endDate = today.GetPeriodEndDate(Period.Week);
 
+        var vacationChargeCode = await _context.ChargeCodes.AsNoTracking().AsQueryable().Where(t => t.Project!.Name.ToLower().Contains("vacation")).FirstOrDefaultAsync(ct);
+
+        if (vacationChargeCode == null)
+        {
+            return Result.Fail("Unable to find vacation chargecode");
+        }
+
+        var staff = await _context.Staff.
+            AsNoTracking()
+            .AsQueryable().Where(t => t.EndDate == null).ToListAsync(ct);
+
+        foreach (var staffMember in staff)
+        {
+            var upcomingVacations = await _context.Times.AsNoTracking().AsQueryable().Where(t => t.Date >= startDate && t.Date <= endDate && t.ChargeCode == vacationChargeCode && t.StaffId == staffMember.Id).ToListAsync(ct);
+            if (!upcomingVacations.Any())
+            {
+                continue;
+            }
+            var getPointsRequest = new GetPointsV1.Request
+            {
+                StaffId = staffMember.Id,
+                Date = startDate
+            };
+
+            var staffPointsResponse = await GetPointsV1(getPointsRequest, ct);
+            var points = staffPointsResponse.Value.Points;
+            var vacationHours = upcomingVacations.Sum(t => t.Hours);
+            var pointsToUpdate = Math.Ceiling(vacationHours / 4);
+            var updatedCount = 0;
+            for (int i = 0; i < points.Count && updatedCount < pointsToUpdate; i++)
+            {
+                if (points[i].ChargeCodeId == null)
+                {
+                    points[i].ChargeCodeId = vacationChargeCode.Id;
+                    points[i].Completed = true;
+                    updatedCount++;
+                }
+            }
+            var upsertPointsRequest = new UpsertPointsV1.Request
+            {
+                StaffId = staffMember.Id,
+                Date = startDate,
+                Points = points
+            };
+
+            var upsertPointsResponse = await UpsertPointV1(upsertPointsRequest, ct);
+
+        }
+
+        return new GenerateVacationPointsV1.Response()
+        {
+        };
+    }
+
+    public async Task BackgroundSendPointSubmissionReminderEmail(Period period, CancellationToken ct)
+    {
+        var startDate = DateOnly.FromDateTime(DateTime.UtcNow).GetPeriodStartDate(period);
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow).GetPeriodEndDate(period);
+        var points = _context.Points.Where(t => t.Date >= startDate && t.Date <= endDate);
+
+        var staffToNotify = await _context.Staff
+            .AsNoTracking()
+            .Where(t => t.EndDate == null && points.Where(x => x.StaffId == t.Id).Count() == 0)
+            .ToListAsync(ct);
+
+        foreach (var staff in staffToNotify)
+        {
+            _backgroundJobClient.Enqueue<EmailMessageService>(t => t.SendPointSubmissionReminderEmail(staff.Id, startDate, endDate, CancellationToken.None));
+        }
+    }
 }

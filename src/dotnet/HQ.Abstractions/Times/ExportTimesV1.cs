@@ -7,6 +7,7 @@ public class ExportTimesV1
     public class Request
     {
         public Guid? StaffId { get; set; }
+        public Guid? InvoiceId { get; set; }
         public string? Search { get; set; }
         public DateOnly? StartDate { get; set; }
         public DateOnly? EndDate { get; set; }
@@ -19,6 +20,7 @@ public class ExportTimesV1
         public Period? Period { get; set; }
         public bool? TimeAccepted { get; set; }
         public bool? Invoiced { get; set; }
+        public bool? Billable { get; set; }
         public TimeStatus? TimeStatus { get; set; }
         public SortColumn SortBy { get; set; } = SortColumn.Date;
         public SortDirection SortDirection { get; set; } = SortDirection.Asc;

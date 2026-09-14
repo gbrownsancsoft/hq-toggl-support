@@ -1,4 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { skip, startWith } from 'rxjs';
+/* eslint-disable rxjs-angular-x/prefer-async-pipe */
+import {
+  Component,
+  OnDestroy,
+  OnInit,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import {
   FormGroup,
   FormControl,
@@ -12,9 +19,22 @@ import {
   RouterLink,
   RouterLinkActive,
 } from '@angular/router';
-import { Observable, BehaviorSubject, map, firstValueFrom } from 'rxjs';
+import {
+  Observable,
+  BehaviorSubject,
+  map,
+  firstValueFrom,
+  Subject,
+  combineLatest,
+  takeUntil,
+} from 'rxjs';
+import { enumToArray } from '../../core/functions/enum-to-array';
 import { APIError } from '../../errors/apierror';
-import { GetChargeCodeRecordV1 } from '../../models/charge-codes/get-chargecodes-v1';
+import {
+  Activity,
+  GetChargeCodeRecordV1,
+} from '../../models/charge-codes/get-chargecodes-v1';
+import { TimeStatus } from '../../enums/time-status';
 import { HQService } from '../../services/hq.service';
 import { CommonModule } from '@angular/common';
 import { ErrorDisplayComponent } from '../../errors/error-display/error-display.component';
@@ -25,6 +45,7 @@ import {
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { roundToNextQuarter } from '../../common/functions/round-to-next-quarter';
 import { ChargeCodeActivity } from '../../enums/charge-code-activity';
+import { CoreModule } from '../../core/core.module';
 
 interface Form {
   ProjectId: FormControl<string | null>;
@@ -35,11 +56,11 @@ interface Form {
   Date: FormControl<Date | null>;
   Task: FormControl<string | null>;
   Notes: FormControl<string | null>;
+  Status: FormControl<TimeStatus | null>;
 }
 
 @Component({
   selector: 'hq-time-edit',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,
@@ -47,11 +68,12 @@ interface Form {
     ErrorDisplayComponent,
     RouterLink,
     RouterLinkActive,
+    CoreModule,
   ],
-
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './time-edit.component.html',
 })
-export class TimeEditComponent implements OnInit {
+export class TimeEditComponent implements OnInit, OnDestroy {
   apiErrors: string[] = [];
   ChargeCodeActivity = ChargeCodeActivity;
 
@@ -64,6 +86,12 @@ export class TimeEditComponent implements OnInit {
   showProjects$ = new BehaviorSubject<boolean | null>(null);
   showQuotes$ = new BehaviorSubject<boolean | null>(null);
   showServices$ = new BehaviorSubject<boolean | null>(null);
+  requireTask$ = new BehaviorSubject<boolean>(false);
+
+  activities$: Observable<Activity[] | null>;
+  public timeStatusValues = enumToArray(TimeStatus);
+
+  private destroyed$ = new Subject<void>();
 
   form = new FormGroup<Form>({
     ProjectId: new FormControl<string | null>(null, {
@@ -93,6 +121,9 @@ export class TimeEditComponent implements OnInit {
     Notes: new FormControl<string | null>(null, {
       validators: [Validators.required],
     }),
+    Status: new FormControl<TimeStatus | null>(null, {
+      validators: [Validators.required],
+    }),
   });
   async ngOnInit() {
     this.timeId =
@@ -100,6 +131,10 @@ export class TimeEditComponent implements OnInit {
         await firstValueFrom(this.route.paramMap.pipe())
       ).get('timeId')) ?? undefined;
     await this.getTime();
+  }
+  ngOnDestroy() {
+    this.destroyed$.next();
+    this.destroyed$.complete();
   }
 
   constructor(
@@ -128,6 +163,61 @@ export class TimeEditComponent implements OnInit {
         return response.records;
       }),
     );
+
+    const chargeCodeChange$ = this.form.controls.ChargeCode.valueChanges.pipe(
+      startWith(this.form.controls.ChargeCode.value),
+    );
+
+    const chargeCodeSelection$ = combineLatest([
+      this.chargeCodes$,
+      chargeCodeChange$,
+    ]).pipe(takeUntil(this.destroyed$));
+
+    chargeCodeSelection$.pipe(takeUntil(this.destroyed$)).subscribe({
+      next: ([chargeCodes, code]) => {
+        const chargeCode = chargeCodes.find((t) => t.code === code);
+        const mustTask = chargeCode?.requireTask ?? false;
+        this.requireTask$.next(mustTask);
+
+        const taskCtrl = this.form.controls.Task;
+        if (mustTask) {
+          taskCtrl.addValidators(Validators.required);
+        } else {
+          taskCtrl.clearValidators();
+        }
+        taskCtrl.updateValueAndValidity({ emitEvent: false });
+      },
+      error: console.error,
+    });
+
+    this.activities$ = combineLatest([
+      this.chargeCodes$,
+      this.form.controls.ChargeCode.valueChanges,
+    ]).pipe(
+      map(([chargeCodes, code]) => {
+        const chargeCode = chargeCodes.find((t) => t.code === code);
+        return chargeCode?.activities ?? [];
+      }),
+      takeUntil(this.destroyed$),
+    );
+    this.activities$.pipe(skip(1), takeUntil(this.destroyed$)).subscribe({
+      next: () => {
+        this.form.controls.ActivityId.removeValidators(Validators.required);
+        this.form.controls.ActivityId.reset();
+        this.form.controls.Task.reset();
+      },
+      error: console.error,
+    });
+    this.activities$.pipe(takeUntil(this.destroyed$)).subscribe({
+      next: (activities) => {
+        if (activities && activities.length > 0) {
+          this.form.controls.ActivityId.addValidators(Validators.required);
+        } else {
+          this.form.controls.ActivityId.removeValidators(Validators.required);
+        }
+      },
+      error: console.error,
+    });
   }
 
   async submit() {
@@ -173,6 +263,7 @@ export class TimeEditComponent implements OnInit {
         Task: time.task,
         ActivityId: time.activityId,
         ChargeCode: time.chargeCode,
+        Status: time.status,
       });
     } catch (err) {
       if (err instanceof APIError) {

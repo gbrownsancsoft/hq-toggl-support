@@ -1,5 +1,5 @@
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import {
   FormControl,
   FormGroup,
@@ -8,7 +8,6 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { ErrorDisplayComponent } from '../../../errors/error-display/error-display.component';
 import { Jurisdiciton } from '../../../enums/jurisdiciton';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { APIError } from '../../../errors/apierror';
@@ -25,19 +24,13 @@ interface Form {
   jurisdiciton: FormControl<Jurisdiciton | null>;
   startDate: FormControl<Date | null>;
   endDate: FormControl<Date | null>;
+  timeEntryCutoffDate: FormControl<Date | null>;
 }
 
 @Component({
   selector: 'hq-staff-view',
-  standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    ErrorDisplayComponent,
-    RouterLink,
-    ButtonComponent,
-  ],
+  imports: [FormsModule, ReactiveFormsModule, RouterLink, ButtonComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './staff-view.component.html',
 })
 export class StaffViewComponent implements OnInit {
@@ -72,6 +65,7 @@ export class StaffViewComponent implements OnInit {
       validators: [],
     }),
     endDate: new FormControl(null, {}),
+    timeEntryCutoffDate: new FormControl(null, {}),
   });
   async ngOnInit() {
     this.staffId =
@@ -121,15 +115,16 @@ export class StaffViewComponent implements OnInit {
       );
       const staffMember = response.records[0];
       this.form.setValue({
-        name: staffMember.name || null,
-        firstName: staffMember.firstName || null,
-        lastName: staffMember.lastName || null,
-        email: staffMember.email || null,
-        workHours: staffMember.workHours || null,
-        vacationHours: staffMember.vacationHours || null,
-        jurisdiciton: staffMember.jurisdiciton || null,
+        name: staffMember.name,
+        firstName: staffMember.firstName,
+        lastName: staffMember.lastName,
+        email: staffMember.email,
+        workHours: staffMember.workHours,
+        vacationHours: staffMember.vacationHours,
+        jurisdiciton: staffMember.jurisdiciton,
         startDate: staffMember.startDate || null,
         endDate: staffMember.endDate || null,
+        timeEntryCutoffDate: staffMember.timeEntryCutoffDate || null,
       });
     } catch (err) {
       if (err instanceof APIError) {

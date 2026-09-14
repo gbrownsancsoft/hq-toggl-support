@@ -1,5 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import {
+  Component,
+  OnDestroy,
+  OnInit,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import {
   Observable,
   Subject,
@@ -11,7 +16,10 @@ import {
   switchMap,
   takeUntil,
 } from 'rxjs';
-import { GetStaffV1Record } from '../../models/staff-members/get-staff-member-v1';
+import {
+  GetStaffV1Record,
+  SortColumn,
+} from '../../models/staff-members/get-staff-member-v1';
 import { HQService } from '../../services/hq.service';
 import {
   AbstractControl,
@@ -28,11 +36,9 @@ import {
 } from '../../models/quotes/get-quotes-v1';
 import { APIError } from '../../errors/apierror';
 import { GetClientRecordV1 } from '../../models/clients/get-client-v1';
-import { SelectableClientListComponent } from '../../clients/selectable-client-list/selectable-client-list.component';
 import { Router, ActivatedRoute } from '@angular/router';
 import { localISODate } from '../../common/functions/local-iso-date';
 import { Period } from '../../enums/period';
-import { PdfViewerComponent } from '../../core/components/pdf-viewer/pdf-viewer.component';
 import { CoreModule } from '../../core/core.module';
 import { enumToArray } from '../../core/functions/enum-to-array';
 import { ProjectStatus } from '../../enums/project-status';
@@ -55,18 +61,12 @@ interface Form {
   status: FormControl<ProjectStatus | null>;
   totalHours: FormControl<number | null>;
   projectNumber: FormControl<number | null>;
+  requireTask: FormControl<boolean | null>;
 }
 @Component({
   selector: 'hq-project-create',
-  standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    SelectableClientListComponent,
-    PdfViewerComponent,
-    CoreModule,
-  ],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, CoreModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './project-create.component.html',
 })
 export class ProjectCreateComponent implements OnDestroy, OnInit {
@@ -101,6 +101,7 @@ export class ProjectCreateComponent implements OnDestroy, OnInit {
       billable: new FormControl(true, { nonNullable: true }),
       bookingHours: new FormControl(null, [Validators.required]),
       projectNumber: new FormControl(null),
+      requireTask: new FormControl(false, { nonNullable: true }),
     },
     { validators: this.dateRangeValidator },
   );
@@ -110,10 +111,12 @@ export class ProjectCreateComponent implements OnDestroy, OnInit {
     private router: Router,
     private route: ActivatedRoute,
   ) {
-    this.projectManagers$ = this.hqService.getStaffMembersV1({}).pipe(
-      map((t) => t.records),
-      shareReplay({ bufferSize: 1, refCount: false }),
-    );
+    this.projectManagers$ = this.hqService
+      .getStaffMembersV1({ sortBy: SortColumn.Name })
+      .pipe(
+        map((t) => t.records),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
 
     this.clients$ = this.hqService.getClientsV1({}).pipe(
       map((t) => t.records),
@@ -138,7 +141,7 @@ export class ProjectCreateComponent implements OnDestroy, OnInit {
 
     projectType$
       .pipe(takeUntil(this.destroy))
-      // eslint-disable-next-line rxjs-angular/prefer-async-pipe
+      // eslint-disable-next-line rxjs-angular-x/prefer-async-pipe
       .subscribe({
         next: (type) => {
           switch (type) {
@@ -207,7 +210,7 @@ export class ProjectCreateComponent implements OnDestroy, OnInit {
         filter(() => this.form.value.type == ProjectType.Quote),
         takeUntil(this.destroy),
       )
-      // eslint-disable-next-line rxjs-angular/prefer-async-pipe
+      // eslint-disable-next-line rxjs-angular-x/prefer-async-pipe
       .subscribe({
         next: (quote) => {
           if (quote) {
@@ -226,7 +229,7 @@ export class ProjectCreateComponent implements OnDestroy, OnInit {
         filter(() => this.form.value.type == ProjectType.Quote),
         takeUntil(this.destroy),
       )
-      // eslint-disable-next-line rxjs-angular/prefer-async-pipe
+      // eslint-disable-next-line rxjs-angular-x/prefer-async-pipe
       .subscribe({
         next: (client) => {
           if (client) {

@@ -1,11 +1,11 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, OnDestroy } from '@angular/core';
 import {
-  ActivatedRoute,
-  Router,
-  RouterLink,
-  RouterLinkActive,
-} from '@angular/router';
+  Component,
+  OnInit,
+  OnDestroy,
+  ChangeDetectionStrategy,
+} from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   Observable,
   Subject,
@@ -36,7 +36,10 @@ import {
   GetQuotesRecordV1,
   SortColumn as QuoteSortColumn,
 } from '../../../models/quotes/get-quotes-v1';
-import { GetStaffV1Record } from '../../../models/staff-members/get-staff-member-v1';
+import {
+  GetStaffV1Record,
+  SortColumn,
+} from '../../../models/staff-members/get-staff-member-v1';
 import { HQService } from '../../../services/hq.service';
 import { GetProjectRecordV1 } from '../../../models/projects/get-project-v1';
 import { ProjectDetailsService } from '../project-details.service';
@@ -57,18 +60,13 @@ interface Form {
   totalHours: FormControl<number | null>;
   projectNumber: FormControl<number | null>;
   timeEntryMaxHours: FormControl<number | null>;
+  requireTask: FormControl<boolean | null>;
 }
 
 @Component({
   selector: 'hq-project-edit',
-  standalone: true,
-  imports: [
-    CommonModule,
-    RouterLink,
-    RouterLinkActive,
-    CoreModule,
-    ReactiveFormsModule,
-  ],
+  imports: [CommonModule, CoreModule, ReactiveFormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './project-edit.component.html',
 })
 export class ProjectEditComponent implements OnInit, OnDestroy {
@@ -106,6 +104,7 @@ export class ProjectEditComponent implements OnInit, OnDestroy {
       billable: new FormControl(true, { nonNullable: true }),
       bookingHours: new FormControl(null, [Validators.required]),
       projectNumber: new FormControl(null),
+      requireTask: new FormControl(false, { nonNullable: true }),
     },
     { validators: this.dateRangeValidator },
   );
@@ -125,10 +124,12 @@ export class ProjectEditComponent implements OnInit, OnDestroy {
       map((t) => t.records[0]),
     );
 
-    this.projectManagers$ = this.hqService.getStaffMembersV1({}).pipe(
-      map((t) => t.records),
-      shareReplay({ bufferSize: 1, refCount: false }),
-    );
+    this.projectManagers$ = this.hqService
+      .getStaffMembersV1({ sortBy: SortColumn.Name })
+      .pipe(
+        map((t) => t.records),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
 
     this.clients$ = this.hqService.getClientsV1({}).pipe(
       map((t) => t.records),
@@ -152,7 +153,7 @@ export class ProjectEditComponent implements OnInit, OnDestroy {
 
     projectType$
       .pipe(takeUntil(this.destroy))
-      // eslint-disable-next-line rxjs-angular/prefer-async-pipe
+      // eslint-disable-next-line rxjs-angular-x/prefer-async-pipe
       .subscribe({
         next: (type) => {
           switch (type) {
@@ -204,9 +205,9 @@ export class ProjectEditComponent implements OnInit, OnDestroy {
       billable: project.billable,
       bookingHours: project.projectBookingHours,
       projectNumber: project.projectNumber,
+      requireTask: project.requireTask,
     });
 
-    this.form.controls.clientId.disable();
     this.form.controls.quoteId.disable();
     this.form.controls.type.disable();
   }

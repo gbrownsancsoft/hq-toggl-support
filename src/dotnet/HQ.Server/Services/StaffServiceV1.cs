@@ -63,6 +63,7 @@ public class StaffServiceV1
                 staff.FirstName = request.FirstName;
                 staff.LastName = request.LastName;
                 staff.Email = request.Email;
+                staff.TimeEntryCutoffDate = request.TimeEntryCutOffDate;
 
                 await _context.SaveChangesAsync(ct);
                 if (request.CreateUser)
@@ -77,6 +78,7 @@ public class StaffServiceV1
                         Email = staff.Email,
                     };
                     var createdUser = await _UserServiceV1.UpsertUserV1(upsertUserRequest, ct);
+                    await _context.SaveChangesAsync();
                     await transaction.CommitAsync(ct);
                     return new UpsertStaffV1.Response()
                     {
@@ -84,6 +86,7 @@ public class StaffServiceV1
                         UserId = createdUser.Value.Id
                     };
                 }
+                await _context.SaveChangesAsync();
                 await transaction.CommitAsync(ct);
                 return new UpsertStaffV1.Response()
                 {
@@ -122,7 +125,7 @@ public class StaffServiceV1
             .AsQueryable();
 
 
-        var timezone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+        var timezone = TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York");
         var currentTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timezone);
         var today = DateOnly.FromDateTime(currentTime);
         var startYearDate = today.GetPeriodStartDate(Period.Year);
@@ -134,9 +137,15 @@ public class StaffServiceV1
 
         if (!string.IsNullOrEmpty(request.Search))
         {
-            records = records.Where(t =>
-                t.Name.ToLower().Contains(request.Search.ToLower())
-            );
+            if (Enum.TryParse<Jurisdiciton>(request.Search.Trim().ToLower(), true, out Jurisdiciton parsedJurisdiction))
+            {
+                records = records.Where(t => t.Jurisdiciton.Equals(parsedJurisdiction));
+            }
+            else
+            {
+                records = records.Where(t =>
+                  t.Name.ToLower().Contains(request.Search.ToLower()));
+            }
         }
 
         if (request.Id.HasValue)
@@ -164,7 +173,7 @@ public class StaffServiceV1
         {
             if (request.CurrentOnly.Value)
             {
-                records = records.Where(t => t.EndDate == null);
+                records = records.Where(t => t.EndDate == null || t.EndDate >= today);
             }
         }
 
@@ -199,7 +208,8 @@ public class StaffServiceV1
             HrsThisMonth = t.Times.Where(x => x.StaffId == t.Id && x.Date >= startMonthDate && x.Date <= endMonthDate).Sum(y => y.Hours),
             FirstName = t.FirstName,
             LastName = t.LastName,
-            Email = t.Email
+            Email = t.Email,
+            TimeEntryCutoffDate = t.TimeEntryCutoffDate
         });
 
 
@@ -243,6 +253,20 @@ public class StaffServiceV1
         };
 
         return response;
+    }
+
+    public async Task<Result<UpsertStaffTimeEntryCutOffDateV1.Response>> UpsertStaffTimeEntryCutOffDateV1(UpsertStaffTimeEntryCutOffDateV1.Request request, CancellationToken ct = default)
+    {
+        var staff = await _context.Staff.FindAsync(request.Id);
+        if (staff == null)
+        {
+            return Result.Fail("Staff does not exist.");
+        }
+
+        staff.TimeEntryCutoffDate = request.TimeEntryCutOffDate;
+
+        await _context.SaveChangesAsync(ct);
+        return Result.Ok(new UpsertStaffTimeEntryCutOffDateV1.Response() { Id = staff.Id });
     }
 
     public async Task<Result<ImportStaffV1.Response>> ImportStaffV1(ImportStaffV1.Request request, CancellationToken ct = default)

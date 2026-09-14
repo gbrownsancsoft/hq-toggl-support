@@ -46,16 +46,24 @@ namespace HQ.Abstractions.ChargeCodes
             public bool Active { get; set; }
             public string? ProjectName { get; set; }
             public string? QuoteName { get; set; }
+            public decimal MaximumTimeEntryHours { get; set; }
             public string? ServiceAgreementName { get; set; }
             public Guid? ProjectId { get; set; }
             public Guid? QuoteId { get; set; }
             public Guid? ServiceAgreementId { get; set; }
             public string? ClientName { get; set; }
             public Guid? ClientId { get; set; }
+            public List<Activity>? Activities { get; set; }
 
             public string? Description { get; set; }
             public bool? IsProjectMember { get; set; }
             public int IsProjectMemberSort { get; set; }
+            public bool? RequireTask { get; set; }
+        }
+        public class Activity
+        {
+            public Guid Id { get; set; }
+            public string Name { get; set; } = null!;
         }
     }
 }

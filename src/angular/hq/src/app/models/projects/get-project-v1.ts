@@ -74,7 +74,7 @@ export interface GetProjectRecordV1 {
   billable: boolean;
   projectTotalHours: number | null;
   projectBookingHours: number | null;
+  requireTask: boolean;
 }
 
-export interface GetProjectResponseV1
-  extends PagedResponseV1<GetProjectRecordV1> {}
+export interface GetProjectResponseV1 extends PagedResponseV1<GetProjectRecordV1> {}

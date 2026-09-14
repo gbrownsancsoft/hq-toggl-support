@@ -1,6 +1,37 @@
 <h1 class="font-rajdhani font-semibold text-3xl px-5 mb-5">Planning Points</h1>
-<div class="px-5 w-60 mb-3">
+<div class="flex w-full flex-1 items-end gap-[20px] px-5 mb-3">
   <hq-search-input [formControl]="search"></hq-search-input>
+  <div class="w-40">
+    <hq-select-input
+      label="Project Manager"
+      [formControl]="projectManagerId"
+      [autocomplete]="true"
+    >
+      <ng-template [hqSelectInputOption]="null">All</ng-template>
+      @for (
+        projectManager of projectManagers$ | async;
+        track projectManager.id
+      ) {
+        <ng-template
+          [hqSelectInputOption]="projectManager.id"
+          [hqSelectInputOptionSelectedDisplay]="projectManager.name"
+          [hqSelectInputOptionSearch]="projectManager.name"
+          >{{ projectManager.name }}</ng-template
+        >
+      }
+    </hq-select-input>
+  </div>
+  <div class="w-40">
+    <hq-select-input
+      [autocomplete]="true"
+      [formControl]="isCompleted"
+      label="Completed"
+    >
+      <ng-template [hqSelectInputOption]="null">All</ng-template>
+      <ng-template [hqSelectInputOption]="true">Yes</ng-template>
+      <ng-template [hqSelectInputOption]="false">No</ng-template>
+    </hq-select-input>
+  </div>
 </div>
 @if (summary$ | async; as summary) {
   <div class="flex flex-col items-start px-5 bg-black-alt">
@@ -37,6 +68,8 @@
     <thead>
       <tr>
         <th colspan="2">Staff</th>
+        <th class="text-center"></th>
+
         <th width="170" class="text-center">1</th>
         <th width="170" class="text-center">2</th>
         <th width="170" class="text-center">3</th>
@@ -61,20 +94,35 @@
           ></td>
           <td>
             <a
-              [routerLink]="['/timesheets', staff.staffId, 'timesheet']"
+              [routerLink]="['/staff', staff.staffId, 'timesheet']"
               class="hover:text-teal-300 ml-2"
               target="_blank"
               >{{ staff.staffName }}</a
             >
           </td>
-          @for (point of staff.points; track point.sequence) {
+          <td>
+            @if (
+              [HQRole.Manager, HQRole.Partner, HQRole.Administrator]
+                | inRole
+                | async
+            ) {
+              <button
+                (click)="editStaffPlanningPoint(staff)"
+                title="Edit points"
+              >
+                <i class="bi bi-pencil-fill text-gray-450"></i>
+              </button>
+            }
+          </td>
+          @for (point of staff.points; track point.id) {
             <td width="165" class="border-l border-black">
               <div
+                [ngClass]="{ 'text-gray-450 ': isNonMatched(point) }"
                 class="w-full text-left flex items-center h-8 p-1 overflow-hidden"
               >
                 @if (point.chargeCodeId) {
                   <a
-                    class="px-2 font-semibold rounded-full w-full"
+                    class="px-2 font-semibold rounded-full w-full whitespace-nowrap"
                     [routerLink]="['/projects', point.projectId]"
                     [title]="
                       point.chargeCode +
@@ -85,15 +133,10 @@
                     "
                     target="_blank"
                     [style.background-color]="
-                      chargeCodeToColor(point.chargeCodeId)
+                      configureChargeCodeColorOpacity(point)
                     "
                   >
-                    {{ point.chargeCode }}:
-                    {{
-                      point.projectName!.length > 12
-                        ? (point.projectName | slice: 0 : 10) + ".."
-                        : point.projectName
-                    }}
+                    {{ getDisplayName(point) }}
                   </a>
                 }
               </div>
